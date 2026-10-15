@@ -20,7 +20,7 @@ video ─┬─ WHAM ─ world-frame SMPL ─ Meta SMPL→MHR map + official MHR
 | Human | WHAM world-frame motion (DPVO rebuilt for the local GPUs), fitted to MHR `pose [T,136]`, `scales [68]`, `shape [45]` with Meta's topology map and the kit's `mesh_to_mhr_params.py` |
 | Object inputs | GroundingDINO prompts (with reviewed overrides in `config/manual_object_prompts.json`) → SAM 2 masks; MoGe-2 metric depth and intrinsics |
 | Object mesh | TRELLIS candidates from the cleanest view in each of the object's three episodes (and all three together); de-plating; the candidate FoundationPose fits best across all three cameras wins; metric size from MoGe-2, refined within 0.75–1.33× |
-| Object track | FoundationPose registration and tracking, ESKF/RTS smoothing |
+| Object track | FoundationPose registration and tracking, ESKF/RTS smoothing; the rotationally symmetric hula hoop instead gets a symmetry-aware particle filter + global optimisation (centre + axis line only, hand-contact prior, FoundationPose anchor while at rest) and an exactly round torus mesh |
 | Alignment | One static-camera PnP per episode (WHAM joints vs. ViTPose keypoints, MoGe-2 intrinsics), low-frequency WHAM drift correction, MoGe/SMPL depth scale |
 | Packing | Episode NPZ files → the official `eval_reconstruction.py` |
 
@@ -77,11 +77,15 @@ Each stage is also a standalone script, so a cluster can run one task per episod
 | 2 | `pipeline/stages/wham_to_mhr.sh EP` | episode | yes | `outputs/human/<ep>/mhr_human.npz` |
 | 2 | `pipeline/stages/align.sh EP` | episode | no | `outputs/alignment/<ep>/` |
 | 2 | `pipeline/stages/object_mesh.sh OBJECT` | object (3 episodes) | yes | `inputs/object_meshes/<object>.glb` |
+| 3 | `pipeline/stages/hands.sh EP` | episode | yes | `outputs/hands/<ep>.npz` |
 | 3 | `pipeline/stages/track_object.sh EP` | episode | yes | `outputs/object/<ep>/foundationpose/` |
-| 4 | `pipeline/stages/pack.sh` | all | no | `submissions/*.parquet` |
+| 4 | `pipeline/stages/track_symmetric.sh EP` | episode (symmetric objects only) | no | `outputs/object/<ep>/foundationpose/symmetric/` |
+| 5 | `pipeline/stages/pack.sh` | all | no | `submissions/*.parquet` |
 
 `EP` is 0–29. `object_mesh.sh` needs depth and masks of its object's three episodes; `align.sh`
-needs WHAM and depth; `pack.sh` needs everything. Optional knobs are documented at the top of each
+needs WHAM and depth; `hands.sh` needs WHAM→MHR and alignment; `track_symmetric.sh` needs tracking
+and hands (it does nothing for objects not listed in `config/symmetric_objects.json`); `pack.sh`
+needs everything. Optional knobs are documented at the top of each
 script (e.g. `RESOLVE_PEN=1` for the hand–object penetration push, off by default).
 
 ## Layout
@@ -89,7 +93,7 @@ script (e.g. `RESOLVE_PEN=1` for the hand–object penetration push, off by defa
 ```text
 pipeline/      env.sh, run_all.sh, setup/ (one-time), stages/ (per episode/object)
 scripts/       Python run inside the images (and the host venv for packing)
-config/        Apptainer definitions, upstream pins, reviewed object prompts
+config/        Apptainer definitions, upstream pins, reviewed object prompts, symmetric objects
 docs/          design notes and results
 ```
 
@@ -100,6 +104,8 @@ Created at run time and ignored by git: `third_party/`, `official/`, `containers
 
 - All 30 episodes run end to end and pack into a valid 740,780-row Track 1 file. The reference is
   held out, so there is no local score; scores come from Kaggle.
+- Known issue: in episodes 2 and 15 the exported WHAM person is not the actor (see
+  `docs/JOINT_BASELINE.md`, "Known issues").
 - CoCoNet refinement from CARI4D is not used: it needs SAM 3D Body decoder buffers that the
   accessible `nvidia/cari4d_commercial` checkpoint does not contain.
 - Generated meshes vary in quality (see `docs/JOINT_BASELINE.md`); `outputs/object_meshes/review_sheet.png`

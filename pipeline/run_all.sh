@@ -21,6 +21,7 @@ for e in ${EPISODES}; do
   bash "${STAGES}/wham.sh" "${e}"            # reuses a validated export
   bash "${STAGES}/wham_to_mhr.sh" "${e}"     # reuses a validated fit
   [[ -s "${TRACK1_ROOT}/outputs/alignment/${tag}/drift.npz" ]] || bash "${STAGES}/align.sh" "${e}"
+  [[ -s "${TRACK1_ROOT}/outputs/hands/${tag}.npz" ]] || bash "${STAGES}/hands.sh" "${e}"
 done
 
 while read -r object; do
@@ -32,6 +33,8 @@ for e in ${EPISODES}; do
   frames="$(episode_field "${e}" length)"
   [[ "$(done_count "${TRACK1_ROOT}/outputs/object/${tag}/foundationpose/smoothed" '*.json')" -eq "${frames}" ]] \
     || bash "${STAGES}/track_object.sh" "${e}"
+  [[ "$(done_count "${TRACK1_ROOT}/outputs/object/${tag}/foundationpose/symmetric" '*.json')" -eq "${frames}" ]] \
+    || bash "${STAGES}/track_symmetric.sh" "${e}"     # no-op unless the object is in config/symmetric_objects.json
 done
 
 bash "${STAGES}/pack.sh"

@@ -85,6 +85,40 @@ Apptainer refuses `--env HOME=...` and keeps HOME on the unmounted, read-only ho
 `warp.init()` fails silently and FoundationPose's `Utils.erode_depth` is never defined (ImportError
 at startup). `in_container` in `pipeline/env.sh` therefore sets `HOME=/tmp` inside the container.
 
+## 3b. Symmetric objects: the hula hoop
+
+FoundationPose cannot track the thin, textureless, rotationally symmetric hoop: its raw track has
+72–126 single-frame jumps over 10 cm per episode (up to 6.7 m) and 40–90° axis flips, and the RTS
+smoother removes them by nearly freezing the hoop (silhouette IoU 0.07–0.11 while it is handled).
+The hoop's spin about its own axis is invisible to CD-O and ACC-O, so what matters is the ring centre
+and axis. `config/symmetric_objects.json` lists such objects; for them:
+
+1. `scripts/make_round_mesh.py` replaces the generated mesh (0.677 × 0.704 m, 4% elliptical) by an
+   exactly round torus of the same size (`<object>.symmetric.glb`, ring radius 0.332 m, tube 0.0135 m).
+2. `pipeline/stages/hands.sh` computes MHR hand points from the drift-corrected human.
+3. `pipeline/stages/track_symmetric.sh` → `scripts/track_symmetric_object.py`: the state is the ring
+   centre and the axis line (no spin, no sign). Mask ellipse fits with the known radius propose depth
+   and both tilt hypotheses; a particle filter weights particles by a symmetric 2D chamfer between the
+   projected ring and the SAM 2 mask (trimmed for occlusion) and a hand-contact prior when a hand is
+   next to the hoop; a global sparse least-squares pass adds acceleration smoothness, 40× smoothness
+   and zero velocity on frames where the mask shows the hoop at rest, and an anchor to the
+   FoundationPose track on those resting frames.
+4. `scripts/build_track1_episodes.py` uses the symmetric track and round mesh when present.
+
+Measured on episodes 0–2 (silhouette IoU of the rendered hoop vs the SAM 2 mask; acceleration of the
+ring centre in cm/frame², FoundationPose smoothed → symmetric):
+
+| ep | IoU all frames | IoU scored frames | acc. at rest | acc. while handled | hand–ring distance |
+|---|---|---|---|---|---|
+| 0 | 0.31 → 0.52 | 0.46 → 0.52 | 0.01 → 0.02 | 0.04 → 2.33 | 16.6 → 9.1 cm |
+| 1 | 0.22 → 0.61 | 0.14 → 0.49 | 0.01 → 0.03 | 0.04 → 2.09 | 20.1 → 12.2 cm |
+| 2 | 0.29 → 0.62 | 0.41 → 0.60 | 0.01 → 0.03 | 0.06 → 3.63 | n/a |
+
+Without ground truth these are proxies. The particle filter is stochastic: a re-run with a 0.1%
+different radius changed a few edge-on frames by up to 0.38 m but left per-frame IoU unchanged on
+average (≤ 0.008). Episode 2 still shows large axis swings in its fastest motion and gets no hand help,
+because its exported WHAM person is the seated background person (see "Known issues").
+
 ## 4. Joint alignment
 
 `pipeline/stages/align.sh EP` runs `scripts/align_human_camera.py` (WHAM image, CPU) →
@@ -139,6 +173,13 @@ COMMIT_URL=https://github.com/<owner>/<repo>/commit/<sha> bash pipeline/stages/p
 
 Uploading (`submit/v2d_submit.py ... --track track_1`) needs a Kaggle account and accepted rules
 for all five Track 1 competitions.
+
+## Known issues
+
+- WHAM person selection: `scripts/export_wham_world_mesh.py` exports the longest WHAM track. In
+  episode 2 that is a seated person in the background (half the size, visible all clip) rather than
+  the actor, and episode 15's actor track is split in two while another track is exported. Human
+  parameters and every object placement relative to the human are wrong for those episodes.
 
 ## Not yet done
 

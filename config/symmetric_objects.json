@@ -1,0 +1,4 @@
+{
+  "_comment": "Objects tracked by scripts/track_symmetric_object.py instead of using the FoundationPose track directly. kind=torus: rotationally symmetric ring around the mesh y axis, replaced by an exactly round torus of the same size (scripts/make_round_mesh.py).",
+  "hula_hoop": {"kind": "torus", "axis": [0.0, 1.0, 0.0]}
+}

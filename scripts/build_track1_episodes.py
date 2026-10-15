@@ -13,6 +13,10 @@ Joint alignment step of the WHAM + FoundationPose baseline. For every episode:
           object_scale = s_co / depth_scale (the mesh stays in its own metric units).
   mesh    inputs/object_meshes/<object>.glb, copied as episode_X_object.glb.
 
+For rotationally symmetric objects (config/symmetric_objects.json) with a symmetry-aware track
+(scripts/track_symmetric_object.py -> foundationpose/symmetric), that track and the exactly round
+<object>.symmetric.glb are used instead (disable with --no_symmetric).
+
 Writes <out>/episode_XXXXXX.npz + episode_XXXXXX_object.glb and <out>/build_report.json.
 Runs with numpy only (the submission venv or any container).
 """
@@ -50,7 +54,7 @@ def episode_rows() -> dict[int, dict]:
     return rows
 
 
-def build_episode(episode: int, row: dict, poses_subdir: str, out: Path) -> dict:
+def build_episode(episode: int, row: dict, poses_subdir: str, out: Path, use_symmetric: bool = True) -> dict:
     tag = f"episode_{episode:06d}"
     frames = int(row["length"])
     human = np.load(ROOT / "outputs" / "human" / tag / "mhr_human.npz")
@@ -67,6 +71,12 @@ def build_episode(episode: int, row: dict, poses_subdir: str, out: Path) -> dict
     depth_scale = float(alignment["depth_scale"])
 
     pose_dir = ROOT / "outputs" / "object" / tag / "foundationpose" / poses_subdir
+    mesh = ROOT / "inputs" / "object_meshes" / f"{row['object']}.glb"
+    symmetric_dir = ROOT / "outputs" / "object" / tag / "foundationpose" / "symmetric"
+    symmetric_mesh = mesh.with_name(f"{row['object']}.symmetric.glb")
+    track = poses_subdir
+    if use_symmetric and symmetric_mesh.exists() and len(list(symmetric_dir.glob("*.json"))) == frames:
+        pose_dir, mesh, track = symmetric_dir, symmetric_mesh, "symmetric"
     rotation = np.empty((frames, 3, 3))
     translation = np.empty((frames, 3))
     scales = np.empty(frames)
@@ -91,7 +101,6 @@ def build_episode(episode: int, row: dict, poses_subdir: str, out: Path) -> dict
         if not np.isfinite(value).all():
             raise SystemExit(f"{tag}: non-finite {name}")
 
-    mesh = ROOT / "inputs" / "object_meshes" / f"{row['object']}.glb"
     shutil.copy(mesh, out / f"{tag}_object.glb")
     np.savez(out / f"{tag}.npz",
              pose=pose.astype(np.float32),
@@ -102,7 +111,7 @@ def build_episode(episode: int, row: dict, poses_subdir: str, out: Path) -> dict
              object_scale=np.float32(object_scale))
     step = np.diff(translation, axis=0)
     return {
-        "episode": episode, "object": row["object"], "frames": frames,
+        "episode": episode, "object": row["object"], "frames": frames, "object_track": track,
         "depth_scale": depth_scale, "object_scale": object_scale,
         "drift_max_m": float(np.linalg.norm(drift_world, axis=1).max()),
         "object_speed_p95_m_per_frame": float(np.percentile(np.linalg.norm(step, axis=1), 95)) if len(step) else 0.0,
@@ -117,20 +126,23 @@ def main() -> None:
     parser.add_argument("--episodes", type=int, nargs="*", default=None, help="default: all 30")
     parser.add_argument("--poses", default="smoothed", choices=("smoothed", "raw"),
                         help="FoundationPose output subdirectory to use")
+    parser.add_argument("--no_symmetric", action="store_true",
+                        help="ignore symmetry-aware tracks and round meshes of symmetric objects")
     args = parser.parse_args()
 
     rows = episode_rows()
     episodes = args.episodes if args.episodes is not None else sorted(rows)
     args.out.mkdir(parents=True, exist_ok=True)
-    report = [build_episode(e, rows[e], args.poses, args.out) for e in episodes]
+    report = [build_episode(e, rows[e], args.poses, args.out, not args.no_symmetric) for e in episodes]
     (args.out / "build_report.json").write_text(json.dumps({
         "schema": "v2d.track1.wham_fp_episodes.v1",
         "human": "WHAM -> MHR (official fitter), drift-corrected against static-camera keypoints",
-        "object": f"TRELLIS generated mesh (not ground truth) + FoundationPose ({args.poses}) in MoGe-2 depth",
+        "object": f"TRELLIS generated mesh (not ground truth) + FoundationPose ({args.poses}) in MoGe-2 depth; "
+                  "symmetric objects: round mesh + symmetry-aware track where available",
         "episodes": report,
     }, indent=2))
     for item in report:
-        print(f"episode {item['episode']:2d} {item['object']:18s} depth_scale={item['depth_scale']:.3f} "
+        print(f"episode {item['episode']:2d} {item['object']:18s} track={item['object_track']:9s} depth_scale={item['depth_scale']:.3f} "
               f"object_scale={item['object_scale']:.3f} drift_max={item['drift_max_m']:.3f} m")
     print(f"PASS: wrote {len(report)} Track 1 episode files to {args.out}")
 
