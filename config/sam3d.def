@@ -1,0 +1,58 @@
+Bootstrap: docker
+From: pytorch/pytorch:2.5.1-cuda12.4-cudnn9-devel
+
+%labels
+    org.opencontainers.image.source https://github.com/nvidia-isaac/video_to_data
+    org.opencontainers.image.revision 193382a184308f6800331f3db829f76dc4294cfe
+    org.opencontainers.image.description "V2D SAM3D object-mesh preparation for Track 1"
+
+%files
+    /work/smoses2s/nvidea_chal/TRACK1/third_party/video_to_data/reconstruction/modules/v2d_common /workspace/v2d_common
+    /work/smoses2s/nvidea_chal/TRACK1/third_party/video_to_data/reconstruction/modules/v2d_sam3d /workspace/v2d_sam3d
+
+%post
+    set -eux
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update
+    apt-get install -y python3-pip python3-dev git libgl1 libegl1 libgles2 libglib2.0-0 zip libxrender1 libxext6 libsm6 libx11-6
+    rm -rf /var/lib/apt/lists/*
+
+    pip install gsplat
+    pip install kaolin==0.18.0 -f https://nvidia-kaolin.s3.us-east-2.amazonaws.com/torch-2.5.1_cu124.html
+    pip install "git+https://github.com/facebookresearch/pytorch3d.git"
+    pip install "git+https://github.com/microsoft/MoGe.git@a8c37341bc0325ca99b9d57981cc3bb2bd3e255b#egg=moge"
+
+    git clone https://github.com/facebookresearch/sam-3d-objects.git /tmp/sam-3d-objects
+    pip install /tmp/sam-3d-objects --no-deps
+    rm -rf /tmp/sam-3d-objects
+
+    pip install loguru timm open3d astor easydict networkx
+    pip install cumm-cu124 spconv-cu124
+    pip install lightning
+    pip install xatlas pyvista pymeshfix igraph imageio
+
+    git clone https://github.com/NVlabs/nvdiffrast /tmp/nvdiffrast
+    pip install setuptools wheel ninja
+    TORCH_CUDA_ARCH_LIST="8.0 8.6 8.9 9.0" pip install /tmp/nvdiffrast --no-build-isolation
+    rm -rf /tmp/nvdiffrast
+
+    pip install packaging
+    MAX_JOBS=4 pip install flash-attn==2.7.4.post1 --no-build-isolation
+    pip install "pyrender==0.1.45" "pyglet==2.1.15"
+    pip install -e /workspace/v2d_common -e /workspace/v2d_sam3d/lib
+    PYOPENGL_PLATFORM=egl python -c "import networkx, pyrender; print('sam3d_egl_imports=pass')"
+
+%environment
+    export PYOPENGL_PLATFORM=egl
+    export HYDRA_FULL_ERROR=1
+    export CONDA_PREFIX=/opt/conda
+    export CUDA_HOME=/usr/local/cuda
+    export LIDRA_SKIP_INIT=1
+    export PYTHONUNBUFFERED=1
+
+%test
+    python -c "import v2d.sam3d.lib.download_weights"
+
+%runscript
+    exec "$@"
+

@@ -1,0 +1,44 @@
+Bootstrap: docker
+From: pytorch/pytorch:2.5.1-cuda12.4-cudnn9-devel
+
+%labels
+    org.opencontainers.image.source https://github.com/nvidia-isaac/video_to_data
+    org.opencontainers.image.revision 193382a184308f6800331f3db829f76dc4294cfe
+    org.opencontainers.image.groundingdino.revision 856dde20aee659246248e20734ef9ba5214f5e44
+    org.opencontainers.image.description "GroundingDINO prompt generation for V2D Track 1 object masks"
+
+%files
+    /work/smoses2s/nvidea_chal/TRACK1/third_party/video_to_data/reconstruction/modules/v2d_common /workspace/v2d_common
+    /work/smoses2s/nvidea_chal/TRACK1/third_party/video_to_data/reconstruction/modules/v2d_mv /workspace/v2d_mv
+    /work/smoses2s/nvidea_chal/TRACK1/third_party/video_to_data/reconstruction/modules/v2d_grounding_dino/lib /workspace/v2d_grounding_dino/lib
+
+%post
+    set -eux
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update
+    apt-get install -y git libgl1 libglib2.0-0 wget
+    rm -rf /var/lib/apt/lists/*
+
+    git clone --filter=blob:none https://github.com/IDEA-Research/GroundingDINO.git /tmp/GroundingDINO
+    cd /tmp/GroundingDINO
+    git checkout --detach 856dde20aee659246248e20734ef9ba5214f5e44
+    FORCE_CUDA=1 TORCH_CUDA_ARCH_LIST="8.0;8.6;8.9;9.0" pip install --no-build-isolation .
+    cd /
+    rm -rf /tmp/GroundingDINO
+
+    pip install "transformers==4.27.4" huggingface-hub requests Pillow opencv-python
+    export HF_HOME=/opt/huggingface
+    python -c "from transformers import AutoTokenizer, BertModel; AutoTokenizer.from_pretrained('bert-base-uncased'); BertModel.from_pretrained('bert-base-uncased')"
+    pip install -e "/workspace/v2d_common[io]" -e /workspace/v2d_mv -e /workspace/v2d_grounding_dino/lib
+
+%environment
+    export HF_HOME=/opt/huggingface
+    export HF_HUB_OFFLINE=1
+    export TRANSFORMERS_OFFLINE=1
+    export PYTHONUNBUFFERED=1
+
+%test
+    python -c "import groundingdino; import v2d.grounding_dino.lib.video_to_object_bboxes"
+
+%runscript
+    exec "$@"

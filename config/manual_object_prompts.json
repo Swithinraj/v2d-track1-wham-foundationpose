@@ -1,0 +1,50 @@
+{
+  "6": {
+    "frame_index": 375,
+    "box": [720, 575, 795, 685],
+    "note": "Visual audit: tight box around the upright iron on the round table; GroundingDINO included the entire table."
+  },
+  "8": {
+    "frame_index": 585,
+    "box": [820, 755, 890, 855],
+    "note": "Visual audit: tight box around the upright blue iron; GroundingDINO selected the tripod."
+  },
+  "9": {
+    "frame_index": 240,
+    "box": [460, 575, 805, 925],
+    "note": "Visual audit: box around the handled white desk; GroundingDINO selected a background table."
+  },
+  "17": {
+    "frame_index": 120,
+    "box": [675, 510, 790, 625],
+    "note": "Visual audit: tight box around the held grass block; GroundingDINO selected the white curtain."
+  },
+  "18": {
+    "frame_index": 285,
+    "points": [[690, 675], [655, 650], [620, 705], [735, 710]],
+    "point_labels": [1, 1, 0, 0],
+    "note": "Visual audit: positive points on roller head and thin handle, with background negatives; box prompts retained only the roller head."
+  },
+  "19": {
+    "frame_index": 315,
+    "points": [[750, 667], [710, 645], [665, 690], [800, 700]],
+    "point_labels": [1, 1, 0, 0],
+    "note": "Visual audit: positive points on roller head and handle, with table/background negatives; box prompts retained only the head."
+  },
+  "20": {
+    "frame_index": 375,
+    "points": [[705, 692], [665, 678], [625, 715], [765, 725]],
+    "point_labels": [1, 1, 0, 0],
+    "note": "Visual audit: positive points on roller head and handle, with table/background negatives; box prompts retained only the head."
+  },
+  "27": {
+    "frame_index": 0,
+    "box": [650, 640, 900, 1090],
+    "note": "Visual audit: unobstructed opening frame around the complete laptop cart; avoids the person overlap in GroundingDINO's frame 165 prompt."
+  },
+  "28": {
+    "frame_index": 0,
+    "box": [560, 610, 710, 875],
+    "note": "Visual audit: box around the foreground laptop cart; GroundingDINO selected a background table."
+  }
+}

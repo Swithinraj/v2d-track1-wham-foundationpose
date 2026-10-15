@@ -1,0 +1,130 @@
+# SAM-free joint baseline: WHAM human + TRELLIS/FoundationPose object
+
+This is the end-to-end Track 1 path that avoids both gated Meta checkpoints
+(`facebook/sam-3d-body-dinov3`, `facebook/sam-3d-objects`). It follows the decoupled baseline plan:
+human track, object track, then a joint alignment layer, then the official packer.
+
+```text
+video ─┬─ WHAM ─ dense SMPL (WHAM world) ─ official MHR fitter ─ MHR params ─┐
+       │                                                                      ├─ joint alignment ─ episode NPZ ─ eval_reconstruction.py
+       └─ SAM 2 masks + MoGe-2 depth ─ TRELLIS mesh ─ FoundationPose ─────────┘
+```
+
+None of the generated object meshes is challenge ground truth. Each installed mesh has a
+`<object>.provenance.json` recording how it was generated and selected.
+
+## 1. Human track (done)
+
+`slurm/06_wham_episode.slurm` + `slurm/13_wham_to_mhr_episode.slurm`, submitted by
+`scripts/submit_human_pipeline.sh`. Outputs: `outputs/wham/episode_*/wham_smpl_world.npz` and
+`outputs/human/episode_*/mhr_human.npz` (WHAM world metres). See `docs/WHAM_BASELINE.md`.
+
+## 2. Object meshes: TRELLIS candidates + FoundationPose selection
+
+`slurm/18_trellis_object_mesh.slurm` (A100 only), one task per object:
+
+1. `scripts/trellis_object_mesh.py` (SAM3D image): scores every third SAM 2 mask frame of each
+   of the object's three episodes for size, compactness, border truncation and temporal stability,
+   and keeps the best view per episode (`views/candidates.jpg` is the review sheet;
+   `config/manual_mesh_views.json` can override views as `{"object": [{"episode": E, "frame": F}]}`).
+   TRELLIS-image-large (MIT, `weights/trellis`) generates candidates from each view alone and from
+   all three together, with seeds 1 and 2. Each is cleaned, decimated to 40k faces, made y-up, and
+   given a coarse metric size from the masked MoGe-2 point cloud's principal extent.
+2. `scripts/select_object_mesh.py` (CARI4D image): every candidate is registered with
+   FoundationPose on each episode's selection frame over a log-scale grid of 0.75–1.33× the
+   depth-derived size, scored as mask IoU + 0.5 · exp(−median |depth ratio − 1|). The best mean
+   over the three cameras wins; its scale is refined (7 samples × 3 levels, same range) and the
+   per-episode median applied. Result: `inputs/object_meshes/<object>.glb`.
+   `SKIP_GENERATION=1` re-runs only this step on existing candidates.
+
+Why the scale range is narrow: FoundationPose registration always places the mesh at the
+observed depth, so the depth term is ≈1 at every scale, and silhouette IoU then rewards inflating
+an imperfect mesh until it covers the mask. With a 0.5–2× range the (too slim) iron mesh went to
+2× its depth-derived length (0.56 m); a fixed-scale diagnostic showed the IoU curve over scale is
+noisy and nearly flat. MoGe-2's back-projected extent sets the metric size, FoundationPose only
+refines it.
+
+Why candidates: single-view TRELLIS output from these small, dim, top-down exo crops is
+semantically unstable. Observed failure modes include a stool turned into a bench, a bowl into a
+flat dish, and objects embedded in a full-width dark plate (`plate_suspect`, skipped when at least
+two clean candidates exist). Three different cameras reject shapes that only explain one view.
+
+TRELLIS imports `rembg`, `transformers` and `open3d` at import time; the SAM3D image lacks the first
+two and its open3d wheel lacks `libusb`. Only the text-to-3D pipeline and background removal use
+them, so `install_import_shims()` installs stand-ins that raise if ever called.
+
+```bash
+cd /work/smoses2s/nvidea_chal
+for offset in 0 5; do
+  sbatch --array=0-4 --export=ALL,OBJECT_OFFSET=${offset} TRACK1/slurm/18_trellis_object_mesh.slurm
+done
+python3 TRACK1/scripts/validate_object_setup.py
+```
+
+## 3. Object tracking
+
+`slurm/11_foundationpose_episode.slurm` (FoundationPose + ESKF/RTS smoothing per episode), as
+documented in `docs/OBJECT_BASELINE.md`. Poses are object-to-camera in MoGe-2 metres.
+
+Fixed on 2026-10-15: Apptainer ignores `--env HOME=/tmp`, so HOME stayed on the read-only,
+unmounted home directory, `warp.init()` failed, and FoundationPose's `Utils.erode_depth` was never
+defined (ImportError at startup). All CARI4D-image calls now set `HOME=/tmp` inside the container.
+
+## 4. Joint alignment
+
+`slurm/19_align_human_camera.slurm` runs `scripts/align_human_camera.py` (WHAM image, CPU) for every
+episode → `outputs/alignment/episode_*/{alignment.json,drift.npz}`.
+
+- **Static camera.** The exo cameras do not move (WHAM's DPVO returns identity), so one rigid
+  transform maps WHAM world into the camera. It is solved by RANSAC PnP + LM refinement over all
+  frames: WHAM world COCO joints (`J_regressor_coco`) against WHAM's ViTPose keypoints, using
+  MoGe-2's intrinsics. WHAM itself ran with its default 1920 px focal length (MoGe-2 estimates
+  ~811 px), so WHAM's own camera-frame translation is not used.
+- **Drift.** WHAM's integrated world trajectory drifts against the static camera. A per-frame,
+  translation-only PnP measures the offset; a 15-frame median and σ = 20-frame Gaussian keep only
+  the low-frequency drift, which is added to the MHR root (`pose[:, :3] += diag(1,−1,−1)·d·10`,
+  verified to move every MHR vertex by exactly `d` metres). WHAM's local motion is untouched.
+- **Scale.** `depth_scale` = median MoGe depth / drift-corrected SMPL front-surface depth
+  (4 px z-buffer cells). Object translations and object scale are divided by it.
+
+Results on all 30 episodes: drift-corrected median reprojection 5.4–17.3 px (from 6.2–150.6 px
+static), depth_scale 0.83–0.95. Review first: episode 24 (150.6 → 17.1 px, 1.35 m correction),
+episode 8 (28.9 → 17.3 px, 1.27 m), episodes 2 and 11 (>1 m corrections).
+
+## 5. Assembly and packing
+
+`slurm/20_pack_track1.slurm`:
+
+1. `scripts/build_track1_episodes.py` writes `submissions/episodes_wham_fp/episode_*.npz`
+   (`pose`, `scales`, `shape`, `object_rotation`, `object_translation`, `object_scale`) and
+   `episode_*_object.glb`, with
+   `object_rotation = R_cwᵀ R_co`, `object_translation = R_cwᵀ (t_co / depth_scale − t_cw)`,
+   `object_scale = s_co / depth_scale`.
+2. Optional hand–object penetration step (`RESOLVE_PEN=1`, off by default):
+   `scripts/extract_mhr_hands.py` (MHR image) computes 512 hand points per frame (256 per hand:
+   vertices whose dominant skinning joint lies in the wrist subtrees 42/78, fixed seed; an
+   approximation of the scorer's host-side hand roles). `scripts/resolve_hand_penetration.py`
+   measures penetration like the scorer (winding number against the budgeted object mesh, inverse
+   Sim(3) pose) and, on penetrating frames of episodes with self-measured PEN ≥ 0.05 cm, translates
+   the object away from the hand by the smallest bisected distance, then dilates and smooths the
+   offsets. Output: `submissions/episodes_wham_fp_pen/` + `penetration_report.json`.
+   Off by default because the baseline already has negligible penetration (self-measured PEN
+   0.013 cm mean over 30 episodes). Only episodes 9, 27 and 29 crossed the threshold, and the push
+   multiplied their object acceleration by 3–14× (episode 27 also got slightly worse PEN).
+3. The official `eval_reconstruction.py` packs and validates the Track 1 Parquet.
+
+`COMMIT_URL` must be the GitHub commit of the code that produced the run
+(`https://github.com/<owner>/<repo>/commit/<sha>`, visible to Nvidia-V2D-Challenge). Without it,
+the job writes `submissions/track1_LOCAL_CHECK_do_not_upload.parquet` for validation only.
+
+```bash
+sbatch TRACK1/slurm/20_pack_track1.slurm                               # local validation
+sbatch --export=ALL,COMMIT_URL=https://github.com/<owner>/<repo>/commit/<sha> TRACK1/slurm/20_pack_track1.slurm
+```
+
+Uploading (`submit/v2d_submit.py ... --track track_1`) needs the user's Kaggle account and accepted
+rules for all five Track 1 competitions.
+
+## Not yet done
+
+- CoCoNet refinement: still blocked on SAM 3D Body decoder buffers (see `STATUS.md`).

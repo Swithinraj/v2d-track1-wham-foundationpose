@@ -1,0 +1,12 @@
+Bootstrap: docker
+From: nvidia/cuda:12.4.1-base-ubuntu22.04
+
+%post
+    printf 'apptainer-definition-build-ok\n' > /build_probe.txt
+
+%test
+    test -s /build_probe.txt
+
+%runscript
+    exec nvidia-smi "$@"
+

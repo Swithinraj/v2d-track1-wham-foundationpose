@@ -1,0 +1,28 @@
+Bootstrap: docker
+From: pytorch/pytorch:2.5.1-cuda12.4-cudnn9-devel
+
+%labels
+    org.opencontainers.image.source https://github.com/facebookresearch/MHR
+    org.opencontainers.image.revision d96fafa33bbf018647c70c3525e91f53e79d2a14
+    org.opencontainers.image.description "Meta topology map plus official Track 1 MHR fitter"
+
+%files
+    /work/smoses2s/nvidea_chal/TRACK1/third_party/MHR /workspace/MHR
+
+%post
+    set -eux
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update
+    apt-get install -y git libgl1 libglib2.0-0
+    rm -rf /var/lib/apt/lists/*
+
+    pip install --no-cache-dir numpy
+
+%environment
+    export PYTHONUNBUFFERED=1
+
+%test
+    python -c "import numpy, torch; print('mhr_converter_imports=pass', torch.__version__)"
+
+%runscript
+    exec "$@"

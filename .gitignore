@@ -1,0 +1,31 @@
+# Secrets and local credentials
+.env
+*.token
+
+# Local environments and caches
+.cache/
+.venvs/
+containers/
+
+# Large or generated artifacts
+data/
+weights/
+inputs/
+outputs/
+submissions/
+logs/
+
+# Official third-party checkouts and extracted release artifacts
+third_party/
+official/
+
+# Python/editor noise
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.idea/
+.vscode/
+
+
+# Scratch and debug outputs
+tmp/
