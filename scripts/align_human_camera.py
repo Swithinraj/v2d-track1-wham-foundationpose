@@ -38,7 +38,7 @@ from PIL import Image
 from scipy.ndimage import gaussian_filter1d, median_filter
 from scipy.optimize import least_squares
 
-ROOT = Path(os.environ.get("TRACK1_ROOT", "/track1"))
+ROOT = Path(os.environ.get("TRACK1_ROOT") or Path(__file__).resolve().parents[1])
 COCO_REGRESSOR = ROOT / "weights" / "wham" / "dataset" / "body_models" / "J_regressor_coco.npy"
 MIN_KEYPOINT_CONFIDENCE = 0.5
 MIN_FRAME_KEYPOINTS = 8

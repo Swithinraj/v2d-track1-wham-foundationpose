@@ -22,7 +22,7 @@ from pathlib import Path
 import numpy as np
 import torch
 
-ROOT = Path(os.environ.get("TRACK1_ROOT", "/track1"))
+ROOT = Path(os.environ.get("TRACK1_ROOT") or Path(__file__).resolve().parents[1])
 sys.path.insert(0, str(ROOT / "official" / "v2d_submission_kit" / "tools" / "track1"))
 from mesh_to_mhr_params import MHR  # noqa: E402
 

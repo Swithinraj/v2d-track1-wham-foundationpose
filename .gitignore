@@ -29,3 +29,8 @@ __pycache__/
 
 # Scratch and debug outputs
 tmp/
+
+# Site-specific: WR-cluster Slurm wrappers and the workspace lab notebook
+slurm/
+STATUS.md
+bin/

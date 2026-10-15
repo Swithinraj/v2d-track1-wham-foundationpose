@@ -1,14 +1,15 @@
 Bootstrap: docker
 From: pytorch/pytorch:2.5.1-cuda12.4-cudnn9-devel
 
+# Build from the repository root (pipeline/setup/build_containers.sh): %files paths are relative.
 %labels
     org.opencontainers.image.source https://github.com/nvidia-isaac/video_to_data
     org.opencontainers.image.revision 193382a184308f6800331f3db829f76dc4294cfe
     org.opencontainers.image.description "V2D SAM3D object-mesh preparation for Track 1"
 
 %files
-    /work/smoses2s/nvidea_chal/TRACK1/third_party/video_to_data/reconstruction/modules/v2d_common /workspace/v2d_common
-    /work/smoses2s/nvidea_chal/TRACK1/third_party/video_to_data/reconstruction/modules/v2d_sam3d /workspace/v2d_sam3d
+    third_party/video_to_data/reconstruction/modules/v2d_common /workspace/v2d_common
+    third_party/video_to_data/reconstruction/modules/v2d_sam3d /workspace/v2d_sam3d
 
 %post
     set -eux

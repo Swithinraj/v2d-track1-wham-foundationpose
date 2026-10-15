@@ -4,10 +4,11 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 
-ROOT = Path("/work/smoses2s/nvidea_chal/TRACK1")
+ROOT = Path(os.environ.get("TRACK1_ROOT") or Path(__file__).resolve().parents[1])
 
 
 def require_file(path: Path, minimum_size: int = 1) -> None:

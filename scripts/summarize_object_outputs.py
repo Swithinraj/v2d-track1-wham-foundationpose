@@ -5,10 +5,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 
 
-ROOT = Path("/work/smoses2s/nvidea_chal/TRACK1")
+ROOT = Path(os.environ.get("TRACK1_ROOT") or Path(__file__).resolve().parents[1])
 
 
 def main() -> None:

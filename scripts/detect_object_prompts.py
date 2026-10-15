@@ -8,11 +8,12 @@ import json
 from pathlib import Path
 
 import cv2
+import os
 
 from v2d.grounding_dino.lib.video_to_object_bboxes import _detect_frame, _get_model
 
 
-ROOT = Path("/work/smoses2s/nvidea_chal/TRACK1")
+ROOT = Path(os.environ.get("TRACK1_ROOT") or Path(__file__).resolve().parents[1])
 
 
 def episode_metadata(index: int) -> dict:

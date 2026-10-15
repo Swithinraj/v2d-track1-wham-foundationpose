@@ -5,10 +5,11 @@ from __future__ import annotations
 
 import hashlib
 import subprocess
+import os
 from pathlib import Path
 
 
-ROOT = Path("/work/smoses2s/nvidea_chal/TRACK1")
+ROOT = Path(os.environ.get("TRACK1_ROOT") or Path(__file__).resolve().parents[1])
 MHR = ROOT / "third_party" / "MHR"
 EXPECTED_COMMIT = "d96fafa33bbf018647c70c3525e91f53e79d2a14"
 MODEL_SHA256 = "352e271a6c42729c68554ceaea0c955e866970160c31e35506d782dc0f7377bc"

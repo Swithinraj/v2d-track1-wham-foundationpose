@@ -16,7 +16,7 @@ import numpy as np
 import trimesh
 from PIL import Image, ImageDraw
 
-ROOT = Path(os.environ.get("TRACK1_ROOT", "/track1"))
+ROOT = Path(os.environ.get("TRACK1_ROOT") or Path(__file__).resolve().parents[1])
 TILE = 220
 
 

@@ -11,7 +11,7 @@ FoundationPose and scores the render against the SAM 2 mask and MoGe-2 depth. Th
 with the best mean score wins; its scale is refined once more and the per-episode median is
 applied. Writes:
 
-  inputs/object_meshes/<object>.glb               consumed by slurm/11_foundationpose_episode.slurm
+  inputs/object_meshes/<object>.glb               consumed by pipeline/stages/track_object.sh
   inputs/object_meshes/<object>.provenance.json   generation + selection record (not ground truth)
 """
 
@@ -32,7 +32,7 @@ from v2d.common.datatypes import Image as V2dImage
 from v2d.foundation_pose.lib.foundation_pose_tracker import FoundationPoseTracker
 from v2d.mesh.lib.mesh import Mesh
 
-ROOT = Path(os.environ.get("TRACK1_ROOT", "/track1"))
+ROOT = Path(os.environ.get("TRACK1_ROOT") or Path(__file__).resolve().parents[1])
 WEIGHTS = ROOT / "weights" / "object" / "foundationpose"
 BACKEND = "nvlabs_pytorch"
 IOU_WEIGHT, DEPTH_WEIGHT = 1.0, 0.5  # silhouette agreement carries most of the shape evidence

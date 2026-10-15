@@ -24,8 +24,9 @@ from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 import numpy as np
+import os
 
-ROOT = Path("/work/smoses2s/nvidea_chal/TRACK1")
+ROOT = Path(os.environ.get("TRACK1_ROOT") or Path(__file__).resolve().parents[1])
 KIT = ROOT / "official" / "v2d_submission_kit"
 sys.path.insert(0, str(KIT))
 from tools.pack_reconstruction import budget_of, find_mesh, read_sample  # noqa: E402

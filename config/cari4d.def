@@ -1,19 +1,20 @@
 Bootstrap: docker
 From: pytorch/pytorch:2.5.1-cuda12.4-cudnn9-devel
 
+# Build from the repository root (pipeline/setup/build_containers.sh): %files paths are relative.
 %labels
     org.opencontainers.image.source https://github.com/nvidia-isaac/video_to_data
     org.opencontainers.image.revision 193382a184308f6800331f3db829f76dc4294cfe
     org.opencontainers.image.description "V2D Track 1 CARI4D baseline for WR Apptainer"
 
 %files
-    /work/smoses2s/nvidea_chal/TRACK1/third_party/video_to_data/reconstruction/modules/v2d_common /workspace/v2d_common
-    /work/smoses2s/nvidea_chal/TRACK1/third_party/video_to_data/reconstruction/modules/v2d_mv /workspace/v2d_mv
-    /work/smoses2s/nvidea_chal/TRACK1/third_party/video_to_data/reconstruction/modules/v2d_mesh/lib /workspace/v2d_mesh/lib
-    /work/smoses2s/nvidea_chal/TRACK1/third_party/video_to_data/reconstruction/modules/v2d_foundation_pose/lib /workspace/v2d_foundation_pose/lib
-    /work/smoses2s/nvidea_chal/TRACK1/third_party/video_to_data/reconstruction/modules/v2d_moge/lib /workspace/v2d_moge/lib
-    /work/smoses2s/nvidea_chal/TRACK1/third_party/video_to_data/reconstruction/modules/v2d_sam3d_body /workspace/v2d_sam3d_body
-    /work/smoses2s/nvidea_chal/TRACK1/third_party/video_to_data/reconstruction/modules/v2d_cari4d/lib /workspace/v2d_cari4d/lib
+    third_party/video_to_data/reconstruction/modules/v2d_common /workspace/v2d_common
+    third_party/video_to_data/reconstruction/modules/v2d_mv /workspace/v2d_mv
+    third_party/video_to_data/reconstruction/modules/v2d_mesh/lib /workspace/v2d_mesh/lib
+    third_party/video_to_data/reconstruction/modules/v2d_foundation_pose/lib /workspace/v2d_foundation_pose/lib
+    third_party/video_to_data/reconstruction/modules/v2d_moge/lib /workspace/v2d_moge/lib
+    third_party/video_to_data/reconstruction/modules/v2d_sam3d_body /workspace/v2d_sam3d_body
+    third_party/video_to_data/reconstruction/modules/v2d_cari4d/lib /workspace/v2d_cari4d/lib
 
 %post
     set -eux

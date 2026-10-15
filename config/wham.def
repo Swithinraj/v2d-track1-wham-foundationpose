@@ -1,6 +1,7 @@
 Bootstrap: docker
 From: yusun9/wham-vitpose-dpvo-cuda11.3-python3.9:latest
 
+# Build from the repository root (pipeline/setup/build_containers.sh): %files paths are relative.
 %labels
     org.opencontainers.image.source https://github.com/yohanshin/WHAM
     org.opencontainers.image.revision 2b54f7797391c94876848b905ed875b154c4a295

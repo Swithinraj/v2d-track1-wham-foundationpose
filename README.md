@@ -1,111 +1,112 @@
-# NVIDIA V2D Challenge — Track 1 workspace
+# V2D Challenge Track 1: WHAM + FoundationPose baseline
 
-This directory is the isolated workspace for **Track 1: monocular 4D human-object reconstruction**.
-All data, environments, weights, container storage, logs, and generated artifacts stay below
-`/work/smoses2s/nvidea_chal/TRACK1`.
+A reproducible, SAM-free baseline for **Track 1 (monocular 4D human–object reconstruction)** of the
+[NVIDIA Video-to-Data challenge](https://nvidia-isaac.github.io/video_to_data/v2d_challenge/).
+It turns each of the 30 released third-person videos into the Track 1 submission: per-frame MHR
+human parameters, an object mesh, and the object's Sim(3) trajectory in a shared frame.
 
-The concise, evidence-backed readiness and blocker list is in [`STATUS.md`](STATUS.md).
-
-## Baseline selected
-
-The current NVIDIA toolkit contains the official `v2d_cari4d` implementation. Its released
-pipeline is:
-
-1. MoGe 2 depth initialization.
-2. SAM 3D Body human initialization in MHR format.
-3. FoundationPose object registration and tracking.
-4. CoCoNet human/object refinement.
-5. Full-clip contact-guided refinement.
-
-The challenge leaderboard labels the Track 1 reference entry **CARI4D (commercial) Baseline**.
-The current toolkit does not define HFL-4D or WHAM as the Track 1 baseline. Do not mix the two
-descriptions when recording results.
-
-An additional WHAM + Meta MHR human-motion branch is configured under `third_party/WHAM` and
-`third_party/MHR`. It bypasses the SAM 3D Body Hugging Face gate and converts WHAM's temporal
-SMPL sequence into the exact MHR parameters required by Track 1. It still needs the separately
-licensed neutral SMPL model file required by WHAM and by the converter. See
-[`docs/WHAM_BASELINE.md`](docs/WHAM_BASELINE.md) for the exact boundary and run commands.
-
-## Workspace layout
+The official CARI4D baseline needs the gated `facebook/sam-3d-body-dinov3` and
+`facebook/sam-3d-objects` checkpoints, and the public data has no object meshes. This pipeline
+uses only ungated components:
 
 ```text
-TRACK1/
-├── config/                 path and runtime configuration
-├── data/track_1/           official public Track 1 dataset (30 episodes)
-├── docs/                   local operating notes
-├── inputs/                 masks and metric object meshes prepared per episode
-├── logs/                   Slurm stdout/stderr
-├── official/               extracted official submission kit
-├── outputs/                CARI4D reconstructions
-├── scripts/                idempotent setup and validation helpers
-├── slurm/                  WR-cluster jobs; heavy work runs here
-├── submissions/            packed Track 1 parquet files and receipts
-├── third_party/            pinned upstream source checkout
-└── weights/                persistent model weights
+video ─┬─ WHAM ─ world-frame SMPL ─ Meta SMPL→MHR map + official MHR fitter ──────┐
+       │                                                                          ├─ joint alignment ─ official packer
+       └─ GroundingDINO + SAM 2 masks, MoGe-2 depth ─ TRELLIS mesh ─ FoundationPose ┘
 ```
 
-## Current official contracts
+| Stage | What it does |
+|---|---|
+| Human | WHAM world-frame motion (DPVO rebuilt for the local GPUs), fitted to MHR `pose [T,136]`, `scales [68]`, `shape [45]` with Meta's topology map and the kit's `mesh_to_mhr_params.py` |
+| Object inputs | GroundingDINO prompts (with reviewed overrides in `config/manual_object_prompts.json`) → SAM 2 masks; MoGe-2 metric depth and intrinsics |
+| Object mesh | TRELLIS candidates from the cleanest view in each of the object's three episodes (and all three together); de-plating; the candidate FoundationPose fits best across all three cameras wins; metric size from MoGe-2, refined within 0.75–1.33× |
+| Object track | FoundationPose registration and tracking, ESKF/RTS smoothing |
+| Alignment | One static-camera PnP per episode (WHAM joints vs. ViTPose keypoints, MoGe-2 intrinsics), low-frequency WHAM drift correction, MoGe/SMPL depth scale |
+| Packing | Episode NPZ files → the official `eval_reconstruction.py` |
 
-- Input dataset: 30 third-person H.264 videos, 16,563 frames total, 1536x1152 at 30 fps.
-- The public dataset contains videos and metadata only. It does **not** contain human pose,
-  object pose, masks, or object meshes.
-- CARI4D requires an RGB video, packed human/object masks, and a correctly scaled object mesh.
-- A Track 1 submission contains per-episode MHR parameters, object pose/scale, and an object mesh.
-- Metrics are CD-H, CD-O, ACC-H, ACC-O, and PEN; all are lower-is-better.
+Generated object meshes are estimates, never challenge ground truth; each installed mesh has a
+`.provenance.json`. Details, design decisions and measured results: [`docs/JOINT_BASELINE.md`](docs/JOINT_BASELINE.md).
 
-See [`docs/BASELINE.md`](docs/BASELINE.md) for the input gaps and run sequence.
+## Requirements
 
-The non-gated object branch (GroundingDINO, SAM 2, MoGe-2, FoundationPose, and trajectory
-smoothing) is documented in [`docs/OBJECT_BASELINE.md`](docs/OBJECT_BASELINE.md). The released
-Track 1 data has held-out ground truth and does not include the object CAD meshes required by
-FoundationPose.
+- Linux with an NVIDIA GPU of compute capability **8.0 or newer** (A100, A6000, L40, H100, …;
+  the TRELLIS, FoundationPose and GroundingDINO extensions are built for 8.0+), ≥ 24 GB VRAM.
+- [Apptainer](https://apptainer.org) ≥ 1.2 with `--fakeroot` builds (or root) and network access
+  for the one-time setup. Every model runs inside the images defined in `config/*.def`.
+- `git`, `curl`, `unzip`, Python ≥ 3.10 on the host (stdlib for helpers, a venv for packing).
+- About 60 GB for images and 25 GB for weights, plus outputs.
+- The **SMPL** neutral model, which is licensed separately: register at
+  [smpl.is.tue.mpg.de](https://smpl.is.tue.mpg.de) and place it at
+  `weights/wham/dataset/body_models/smpl/SMPL_NEUTRAL.pkl`. Never commit it.
 
-The non-gated human setup is submitted with `bash TRACK1/scripts/submit_human_setup.sh`.
-After placing `SMPL_NEUTRAL.pkl` at the documented path and passing both validators, submit all
-30 WHAM→MHR episodes with `bash TRACK1/scripts/submit_human_pipeline.sh`.
-
-## Setup and run order
+## Setup (once)
 
 ```bash
-cd /work/smoses2s/nvidea_chal
-
-# 1. Extract the official kit and create Python environments.
-bash TRACK1/scripts/bootstrap_workspace.sh
-
-# 2. Download only Track 1 of the public dataset.
-bash TRACK1/scripts/download_track1_data.sh
-python3 TRACK1/scripts/validate_workspace.py
-
-# 3. Validate cluster/container support without launching a real baseline.
-sbatch --test-only TRACK1/slurm/00_probe_runtime.slurm
-sbatch TRACK1/slurm/00_probe_runtime.slurm
-
-# 4. After the probe succeeds, build the CARI4D image through Slurm.
-sbatch --test-only TRACK1/slurm/01_build_baseline.slurm
-sbatch TRACK1/slurm/01_build_baseline.slurm
-
-# Build SAM2/SAM3D input-preparation images after CARI4D succeeds.
-sbatch --dependency=afterok:CARI4D_BUILD_JOB_ID TRACK1/slurm/01b_build_input_tools.slurm
-
-# 5. Provide HF_TOKEN only at submission time; never store it in this repository.
-sbatch --export=ALL,HF_TOKEN="${HF_TOKEN}" TRACK1/slurm/02_download_weights.slurm
-
-# 6. Prepare masks and a metric mesh, then run one smoke-test episode.
-sbatch --export=ALL,EPISODE=0 TRACK1/slurm/03_cari4d_episode.slurm
+bash pipeline/setup/fetch_sources.sh      # pinned upstream repos + submodules, Eigen, submission kit
+bash pipeline/setup/build_containers.sh   # 6 Apptainer images in containers/ (slow: CUDA extensions)
+bash pipeline/setup/build_dpvo.sh         # WHAM's DPVO for your GPUs (TORCH_CUDA_ARCH_LIST, default 7.0;8.0;8.6)
+bash pipeline/setup/download_data.sh      # Track 1 videos + metadata (HF_TOKEN / HF_TOKEN_FILE if required)
+bash pipeline/setup/download_weights.sh   # all public checkpoints; derives SMPL faces once SMPL is in place
+bash pipeline/setup/setup_venv.sh         # host venv with the official kit's requirements (PYTHON=...)
 ```
 
-Do not launch steps 4–6 until the preceding job has succeeded. No jobs are submitted by the
-setup scripts themselves.
+All pins (upstream commits, dataset revision, weight revisions, checksums) are in
+[`config/upstream.env`](config/upstream.env).
 
-## Upstream pins
+## Run
 
-The source checkout is recorded in `config/upstream.env`. Update deliberately and re-run all
-contract checks after changing it.
+```bash
+bash pipeline/run_all.sh
+COMMIT_URL=https://github.com/<owner>/<repo>/commit/<sha> bash pipeline/stages/pack.sh
+```
 
-Official references:
+`run_all.sh` runs every stage on the current machine in dependency order and skips completed
+outputs, so it can be resumed. Without `COMMIT_URL` the packer writes
+`submissions/track1_LOCAL_CHECK_do_not_upload.parquet`; with it, an uploadable
+`submissions/track1_wham_fp_<date>.parquet`. Upload with the kit's
+`submit/v2d_submit.py <parquet> --track track_1` after accepting the rules of all five Track 1
+Kaggle competitions.
 
-- Challenge: https://nvidia-isaac.github.io/video_to_data/v2d_challenge/
-- Toolkit: https://github.com/nvidia-isaac/video_to_data
-- Track 1 dataset: https://huggingface.co/datasets/nvidia/video_to_data_challenge/tree/main/track_1
+Each stage is also a standalone script, so a cluster can run one task per episode or object:
 
+| Order | Script | Unit | GPU | Output |
+|---|---|---|---|---|
+| 1 | `pipeline/stages/object_depth.sh EP` | episode | yes | `outputs/object/<ep>/{depth,intrinsics}` |
+| 1 | `pipeline/stages/object_masks.sh EP` | episode | yes | `outputs/object/<ep>/{prompt,sam2_masks}` |
+| 1 | `pipeline/stages/wham.sh EP` | episode | yes | `outputs/wham/<ep>/wham_smpl_world.npz` |
+| 2 | `pipeline/stages/wham_to_mhr.sh EP` | episode | yes | `outputs/human/<ep>/mhr_human.npz` |
+| 2 | `pipeline/stages/align.sh EP` | episode | no | `outputs/alignment/<ep>/` |
+| 2 | `pipeline/stages/object_mesh.sh OBJECT` | object (3 episodes) | yes | `inputs/object_meshes/<object>.glb` |
+| 3 | `pipeline/stages/track_object.sh EP` | episode | yes | `outputs/object/<ep>/foundationpose/` |
+| 4 | `pipeline/stages/pack.sh` | all | no | `submissions/*.parquet` |
+
+`EP` is 0–29. `object_mesh.sh` needs depth and masks of its object's three episodes; `align.sh`
+needs WHAM and depth; `pack.sh` needs everything. Optional knobs are documented at the top of each
+script (e.g. `RESOLVE_PEN=1` for the hand–object penetration push, off by default).
+
+## Layout
+
+```text
+pipeline/      env.sh, run_all.sh, setup/ (one-time), stages/ (per episode/object)
+scripts/       Python run inside the images (and the host venv for packing)
+config/        Apptainer definitions, upstream pins, reviewed object prompts
+docs/          design notes and results
+```
+
+Created at run time and ignored by git: `third_party/`, `official/`, `containers/`, `weights/`,
+`data/`, `inputs/`, `outputs/`, `submissions/`, `.cache/`, `.venvs/`, `logs/`.
+
+## Status and limits
+
+- All 30 episodes run end to end and pack into a valid 740,780-row Track 1 file. The reference is
+  held out, so there is no local score; scores come from Kaggle.
+- CoCoNet refinement from CARI4D is not used: it needs SAM 3D Body decoder buffers that the
+  accessible `nvidia/cari4d_commercial` checkpoint does not contain.
+- Generated meshes vary in quality (see `docs/JOINT_BASELINE.md`); `outputs/object_meshes/review_sheet.png`
+  (`scripts/render_mesh_review.py`) shows them side by side with their source views.
+
+References: [challenge](https://nvidia-isaac.github.io/video_to_data/v2d_challenge/) ·
+[toolkit](https://github.com/nvidia-isaac/video_to_data) ·
+[Track 1 data](https://huggingface.co/datasets/nvidia/video_to_data_challenge/tree/main/track_1) ·
+[WHAM](https://github.com/yohanshin/WHAM) · [MHR](https://github.com/facebookresearch/MHR) ·
+[TRELLIS](https://github.com/microsoft/TRELLIS)

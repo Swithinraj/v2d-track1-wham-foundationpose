@@ -1,13 +1,14 @@
 Bootstrap: docker
 From: pytorch/pytorch:2.5.1-cuda12.4-cudnn9-devel
 
+# Build from the repository root (pipeline/setup/build_containers.sh): %files paths are relative.
 %labels
     org.opencontainers.image.source https://github.com/facebookresearch/MHR
     org.opencontainers.image.revision d96fafa33bbf018647c70c3525e91f53e79d2a14
     org.opencontainers.image.description "Meta topology map plus official Track 1 MHR fitter"
 
 %files
-    /work/smoses2s/nvidea_chal/TRACK1/third_party/MHR /workspace/MHR
+    third_party/MHR /workspace/MHR
 
 %post
     set -eux

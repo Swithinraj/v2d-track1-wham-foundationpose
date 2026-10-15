@@ -4,10 +4,11 @@
 from __future__ import annotations
 
 import subprocess
+import os
 from pathlib import Path
 
 
-ROOT = Path("/work/smoses2s/nvidea_chal/TRACK1")
+ROOT = Path(os.environ.get("TRACK1_ROOT") or Path(__file__).resolve().parents[1])
 WHAM = ROOT / "third_party" / "WHAM"
 ASSETS = ROOT / "weights" / "wham"
 EXPECTED_COMMIT = "2b54f7797391c94876848b905ed875b154c4a295"
@@ -51,7 +52,7 @@ def main() -> None:
     # This file cannot legally be redistributed with WHAM. The user must obtain it after
     # accepting the SMPL/SMPLify terms and place it at this exact path.
     require_file(body / "smpl" / "SMPL_NEUTRAL.pkl", 1_000_000)
-    # Derived locally from the licensed model by submit_human_pipeline.sh. It is not part of
+    # Derived locally from the licensed model by pipeline/setup/download_weights.sh. It is not part of
     # WHAM's public body_models.tar.gz archive.
     require_file(body / "smpl_faces.npy", 1_000)
 

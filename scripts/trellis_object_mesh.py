@@ -32,7 +32,7 @@ import cv2
 import numpy as np
 from PIL import Image
 
-ROOT = Path(os.environ.get("TRACK1_ROOT", "/track1"))
+ROOT = Path(os.environ.get("TRACK1_ROOT") or Path(__file__).resolve().parents[1])
 DATA = ROOT / "data" / "track_1"
 OBJECT_OUT = ROOT / "outputs" / "object"
 MESH_OUT = ROOT / "outputs" / "object_meshes"

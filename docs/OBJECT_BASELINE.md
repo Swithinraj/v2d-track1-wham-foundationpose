@@ -31,16 +31,14 @@ pink_foam_roll.glb     short_wood_stool.glb   white_desk.glb
 white_laptop_cart.glb
 ```
 
-## Cluster run sequence
+## Run sequence
 
 ```bash
-cd /work/smoses2s/nvidea_chal
-
-bash TRACK1/scripts/submit_object_pipeline.sh
+for e in $(seq 0 29); do
+  bash pipeline/stages/object_depth.sh "$e"
+  bash pipeline/stages/object_masks.sh "$e"
+done
 ```
-
-The WR cluster limits arrays to five tasks. The submitter creates six offset arrays for each
-stage, covering episodes 0 through 29, and makes every array depend on the public-weight job.
 
 Inspect every `outputs/object/episode_XXXXXX/prompt/primary_prompt.jpg` and
 `mask_audit.json`. Automated text prompting is a proposal, not ground truth; incorrect prompts
@@ -48,20 +46,16 @@ must be replaced before FoundationPose. Reviewed box or positive/negative point 
 `config/manual_object_prompts.json`; rerunning an episode preserves the override and records
 `source=manual_visual_review` in its prompt metadata.
 
-The GroundingDINO CUDA extension in the pinned input-tools image is only compatible with the
-cluster's newer GPU architecture. `slurm/10_object_masks.slurm` is therefore constrained to the
-A100 nodes `wr22`–`wr25`.
+The GroundingDINO CUDA extension in the input-tools image targets compute capability 8.0+; on
+older GPUs it reports "no kernel image is available" and silently returns no detections.
 
-After metric meshes are available:
+Metric meshes come from `pipeline/stages/object_mesh.sh` (see `docs/JOINT_BASELINE.md`). Then:
 
 ```bash
-python3 TRACK1/scripts/validate_object_setup.py
-for offset in 0 5 10 15 20 25; do
-  sbatch --array=0-4 --export="ALL,EPISODE_OFFSET=${offset}" \
-    TRACK1/slurm/11_foundationpose_episode.slurm
-done
+python3 scripts/validate_object_setup.py
+for e in $(seq 0 29); do bash pipeline/stages/track_object.sh "$e"; done
 ```
 
 MoGe-2 depth and monocular intrinsics are estimates. FoundationPose output remains in each
-camera's coordinate system; final CARI4D joint refinement is responsible for producing the
-shared human/object world frame used by the submission.
+camera's coordinate system; `pipeline/stages/align.sh` and `scripts/build_track1_episodes.py`
+map it into the shared human/object frame used by the submission.

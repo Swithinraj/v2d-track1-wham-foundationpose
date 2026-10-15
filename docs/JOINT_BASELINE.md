@@ -13,15 +13,15 @@ video ─┬─ WHAM ─ dense SMPL (WHAM world) ─ official MHR fitter ─ MHR
 None of the generated object meshes is challenge ground truth. Each installed mesh has a
 `<object>.provenance.json` recording how it was generated and selected.
 
-## 1. Human track (done)
+## 1. Human track
 
-`slurm/06_wham_episode.slurm` + `slurm/13_wham_to_mhr_episode.slurm`, submitted by
-`scripts/submit_human_pipeline.sh`. Outputs: `outputs/wham/episode_*/wham_smpl_world.npz` and
-`outputs/human/episode_*/mhr_human.npz` (WHAM world metres). See `docs/WHAM_BASELINE.md`.
+`pipeline/stages/wham.sh EP` then `pipeline/stages/wham_to_mhr.sh EP`. Outputs:
+`outputs/wham/episode_*/wham_smpl_world.npz` and `outputs/human/episode_*/mhr_human.npz`
+(WHAM world metres). See `docs/WHAM_BASELINE.md`.
 
 ## 2. Object meshes: TRELLIS candidates + FoundationPose selection
 
-`slurm/18_trellis_object_mesh.slurm` (A100 only), one task per object:
+`pipeline/stages/object_mesh.sh OBJECT` (GPU with compute capability 8.0+), once per object:
 
 1. `scripts/trellis_object_mesh.py` (SAM3D image): scores every third SAM 2 mask frame of each
    of the object's three episodes for size, compactness, border truncation and temporal stability,
@@ -54,26 +54,41 @@ two and its open3d wheel lacks `libusb`. Only the text-to-3D pipeline and backgr
 them, so `install_import_shims()` installs stand-ins that raise if ever called.
 
 ```bash
-cd /work/smoses2s/nvidea_chal
-for offset in 0 5; do
-  sbatch --array=0-4 --export=ALL,OBJECT_OFFSET=${offset} TRACK1/slurm/18_trellis_object_mesh.slurm
-done
-python3 TRACK1/scripts/validate_object_setup.py
+source pipeline/env.sh
+for object in $(all_objects); do bash pipeline/stages/object_mesh.sh "$object"; done
+python3 scripts/validate_object_setup.py
 ```
+
+Selected meshes from the run that produced the submission (mean silhouette IoU over the object's
+three cameras after FoundationPose registration; review sheet in
+`outputs/object_meshes/review_sheet.png`):
+
+| Object | Winner | Mean IoU | Extents (m) | Note |
+|---|---|---|---|---|
+| big_red_bowl | c05 | 0.93 | 0.28 × 0.13 × 0.38 | thin wire artifact |
+| black_pan | c04 | 0.79 | 0.21 × 0.02 × 0.19 | flat disc, no handle |
+| foam_grass_block | c04 | 0.96 | 0.19 × 0.20 × 0.19 | |
+| hula_hoop | c03 | 0.60 | 0.68 × 0.03 × 0.70 | |
+| iron | c00d | 0.76 | 0.19 × 0.35 × 0.09 | scale at the 1.33× bound |
+| paint_roller | c05 | 0.88 | 0.24 × 0.07 × 0.07 | |
+| pink_foam_roll | c02 | 0.92 | 0.59 × 0.11 × 0.04 | flattened, not a cylinder |
+| short_wood_stool | c07d | 0.80 | 0.43 × 0.48 × 0.27 | multi-view, de-plated |
+| white_desk | c02d | 0.81 | 0.94 × 0.82 × 0.55 | |
+| white_laptop_cart | c05d | 0.78 | 0.54 × 0.77 × 0.42 | |
 
 ## 3. Object tracking
 
-`slurm/11_foundationpose_episode.slurm` (FoundationPose + ESKF/RTS smoothing per episode), as
-documented in `docs/OBJECT_BASELINE.md`. Poses are object-to-camera in MoGe-2 metres.
+`pipeline/stages/track_object.sh EP` (FoundationPose + ESKF/RTS smoothing), as documented in
+`docs/OBJECT_BASELINE.md`. Poses are object-to-camera in MoGe-2 metres.
 
-Fixed on 2026-10-15: Apptainer ignores `--env HOME=/tmp`, so HOME stayed on the read-only,
-unmounted home directory, `warp.init()` failed, and FoundationPose's `Utils.erode_depth` was never
-defined (ImportError at startup). All CARI4D-image calls now set `HOME=/tmp` inside the container.
+Apptainer refuses `--env HOME=...` and keeps HOME on the unmounted, read-only host home. Then
+`warp.init()` fails silently and FoundationPose's `Utils.erode_depth` is never defined (ImportError
+at startup). `in_container` in `pipeline/env.sh` therefore sets `HOME=/tmp` inside the container.
 
 ## 4. Joint alignment
 
-`slurm/19_align_human_camera.slurm` runs `scripts/align_human_camera.py` (WHAM image, CPU) for every
-episode → `outputs/alignment/episode_*/{alignment.json,drift.npz}`.
+`pipeline/stages/align.sh EP` runs `scripts/align_human_camera.py` (WHAM image, CPU) →
+`outputs/alignment/episode_*/{alignment.json,drift.npz}`.
 
 - **Static camera.** The exo cameras do not move (WHAM's DPVO returns identity), so one rigid
   transform maps WHAM world into the camera. It is solved by RANSAC PnP + LM refinement over all
@@ -93,7 +108,7 @@ episode 8 (28.9 → 17.3 px, 1.27 m), episodes 2 and 11 (>1 m corrections).
 
 ## 5. Assembly and packing
 
-`slurm/20_pack_track1.slurm`:
+`pipeline/stages/pack.sh`:
 
 1. `scripts/build_track1_episodes.py` writes `submissions/episodes_wham_fp/episode_*.npz`
    (`pose`, `scales`, `shape`, `object_rotation`, `object_translation`, `object_scale`) and
@@ -115,16 +130,17 @@ episode 8 (28.9 → 17.3 px, 1.27 m), episodes 2 and 11 (>1 m corrections).
 
 `COMMIT_URL` must be the GitHub commit of the code that produced the run
 (`https://github.com/<owner>/<repo>/commit/<sha>`, visible to Nvidia-V2D-Challenge). Without it,
-the job writes `submissions/track1_LOCAL_CHECK_do_not_upload.parquet` for validation only.
+the script writes `submissions/track1_LOCAL_CHECK_do_not_upload.parquet` for validation only.
 
 ```bash
-sbatch TRACK1/slurm/20_pack_track1.slurm                               # local validation
-sbatch --export=ALL,COMMIT_URL=https://github.com/<owner>/<repo>/commit/<sha> TRACK1/slurm/20_pack_track1.slurm
+bash pipeline/stages/pack.sh                                                          # local validation
+COMMIT_URL=https://github.com/<owner>/<repo>/commit/<sha> bash pipeline/stages/pack.sh   # uploadable
 ```
 
-Uploading (`submit/v2d_submit.py ... --track track_1`) needs the user's Kaggle account and accepted
-rules for all five Track 1 competitions.
+Uploading (`submit/v2d_submit.py ... --track track_1`) needs a Kaggle account and accepted rules
+for all five Track 1 competitions.
 
 ## Not yet done
 
-- CoCoNet refinement: still blocked on SAM 3D Body decoder buffers (see `STATUS.md`).
+- CoCoNet refinement: blocked on SAM 3D Body decoder buffers that the accessible
+  `nvidia/cari4d_commercial` checkpoint does not contain.

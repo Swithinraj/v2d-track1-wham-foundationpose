@@ -36,17 +36,14 @@ inputs/episode_000000/
 └── object.glb                  metric scale
 ```
 
-## Cluster/container constraint
+## Container runtime
 
-Upstream orchestration calls `docker` directly. This WR login node has Podman/Buildah and
-Apptainer but no Docker executable. A Slurm probe confirmed that rootless Podman cannot unpack
-OCI layers here: the account has no subordinate UID/GID range and the NFS-backed workspace
-rejects the required pivot operation. `00_probe_runtime.slurm` therefore tests the cluster-native
-Apptainer definition-build and NVIDIA GPU passthrough path. The build and execution jobs use
-Apptainer directly and never rely on a Docker compatibility shim.
-
-The CARI4D image compiles large CUDA extensions and downloads many dependencies. It must be
-built in Slurm, not on `wr0`.
+Upstream orchestration calls `docker` directly. Many HPC systems have no Docker daemon, and
+rootless Podman often cannot unpack OCI layers on NFS-backed storage without subordinate UID/GID
+ranges. This repository therefore converts the upstream Dockerfiles into Apptainer definitions
+(`config/*.def`) and calls Apptainer directly (`pipeline/setup/build_containers.sh`), without a
+Docker compatibility shim. The CARI4D image compiles large CUDA extensions; build it on a machine
+with a GPU and plenty of memory.
 
 ## Submission format
 
