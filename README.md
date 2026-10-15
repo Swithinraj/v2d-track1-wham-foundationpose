@@ -88,8 +88,8 @@ needs WHAM and depth; `hands.sh` needs WHAM→MHR and alignment; `depth_trend.sh
 alignment, depth and masks; `track_symmetric.sh` needs tracking
 and hands (it does nothing for objects not listed in `config/symmetric_objects.json`); `pack.sh`
 needs everything. Optional knobs are documented at the top of each
-script (e.g. `DEPTH_TREND=0` turns off the human depth-trend correction, `RESOLVE_PEN=1` turns on
-the hand–object penetration push).
+script (e.g. `DEPTH_TREND=0` turns off the human depth-trend correction, `SMOOTH_SYMMETRIC=0` the
+hoop-centre smoothing, `RESOLVE_PEN=1` turns on the hand–object penetration push).
 
 ## Layout
 

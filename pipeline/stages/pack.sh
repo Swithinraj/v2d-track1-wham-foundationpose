@@ -3,6 +3,8 @@
 #   scripts/build_track1_episodes.py     -> submissions/episodes_wham_fp/ (episode NPZ + object mesh)
 #   DEPTH_TREND=1 (default)              -> human depth drift removed with MoGe's trend (DEPTH_TREND_ALPHA,
 #                                           default 0.75) -> submissions/episodes_wham_fp_depth/
+#   SMOOTH_SYMMETRIC=1 (default)         -> centre of symmetry-tracked objects smoothed (SMOOTH_SYMMETRIC_LAM,
+#                                           default 100) -> <previous dir>_smooth/
 #   RESOLVE_PEN=1 (optional)             -> hand points + penetration push -> <previous dir>_pen/
 #   official eval_reconstruction.py      -> submissions/*.parquet
 # COMMIT_URL=https://github.com/<owner>/<repo>/commit/<sha> makes the file uploadable; without it a
@@ -22,6 +24,12 @@ if [[ "${DEPTH_TREND:-1}" == 1 ]]; then
     --input "/track1/submissions/${EPISODES_NAME}" --out "/track1/submissions/${EPISODES_NAME}_depth" \
     --alpha "${DEPTH_TREND_ALPHA:-0.75}"
   EPISODES_NAME="${EPISODES_NAME}_depth"
+fi
+if [[ "${SMOOTH_SYMMETRIC:-1}" == 1 ]]; then
+  in_container wham.sif python /track1/scripts/smooth_symmetric_objects.py \
+    --input "/track1/submissions/${EPISODES_NAME}" --out "/track1/submissions/${EPISODES_NAME}_smooth" \
+    --lam "${SMOOTH_SYMMETRIC_LAM:-100}"
+  EPISODES_NAME="${EPISODES_NAME}_smooth"
 fi
 if [[ "${RESOLVE_PEN:-0}" == 1 ]]; then
   in_container mhr_converter.sif python /track1/scripts/extract_mhr_hands.py \

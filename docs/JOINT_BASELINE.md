@@ -180,7 +180,18 @@ episode 8 (28.9 → 17.3 px, 1.27 m), episodes 2 and 11 (>1 m corrections).
    ACC-H 0.2209 → 0.2208, ACC-O unchanged (a per-frame translation of the human changes the anchor
    fit by a translation only).
    A version gated by 2D-keypoint agreement scored worse (21.95), so it is applied to every episode.
-3. Optional hand–object penetration step (`RESOLVE_PEN=1`, off by default):
+3. Symmetric-object smoothing (`SMOOTH_SYMMETRIC=1`, on by default; `SMOOTH_SYMMETRIC_LAM`, default 100):
+   the symmetry-aware hoop tracker fits the ring to every frame's mask and leaves broadband jitter on
+   moving frames (episode 1: 2.7 cm/frame² mean acceleration on scored frames, against 0.01–0.08 for
+   every FoundationPose-tracked object). `scripts/smooth_symmetric_objects.py` (WHAM image) re-solves
+   the world-frame centre of each symmetry-tracked episode as weighted least squares: stay near the
+   track (weight 40 on frames where the tracker's mask-motion test says the object rests, 1 elsewhere)
+   plus λ × squared second differences. Rotation and mesh are unchanged → `<previous dir>_smooth/` +
+   `smooth_symmetric_report.json`. Kaggle A/B against the same pipeline without it: ACC-O 0.1729 →
+   0.0769, CD-O 29.91 → 29.89 cm (λ 10: 0.0868 / 29.91). Coupling the centre's velocity to the
+   grasping MHR hand instead lowered the silhouette IoU: the hands are noisier than the track, and for
+   every rigid object the hand-carried pose is 5–30× jerkier than FoundationPose's.
+4. Optional hand–object penetration step (`RESOLVE_PEN=1`, off by default):
    `scripts/extract_mhr_hands.py` (MHR image) computes 512 hand points per frame (256 per hand:
    vertices whose dominant skinning joint lies in the wrist subtrees 42/78, fixed seed; an
    approximation of the scorer's host-side hand roles). `scripts/resolve_hand_penetration.py`
@@ -191,7 +202,7 @@ episode 8 (28.9 → 17.3 px, 1.27 m), episodes 2 and 11 (>1 m corrections).
    Off by default because the baseline already has negligible penetration (self-measured PEN
    0.013 cm mean over 30 episodes). Only episodes 9, 27 and 29 crossed the threshold, and the push
    multiplied their object acceleration by 3–14× (episode 27 also got slightly worse PEN).
-4. The official `eval_reconstruction.py` packs and validates the Track 1 Parquet.
+5. The official `eval_reconstruction.py` packs and validates the Track 1 Parquet.
 
 `COMMIT_URL` must be the GitHub commit of the code that produced the run
 (`https://github.com/<owner>/<repo>/commit/<sha>`, visible to Nvidia-V2D-Challenge). Without it,
