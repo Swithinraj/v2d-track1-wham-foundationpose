@@ -11,9 +11,16 @@ require_file "${TRACK1_ROOT}/outputs/wham/${TAG}/wham_smpl_world.npz" "run pipel
 CHECK="
 import numpy as np
 z = np.load('/track1/outputs/human/${TAG}/mhr_human.npz')
-n = np.load('/track1/outputs/wham/${TAG}/wham_smpl_world.npz')['vertices'].shape[0]
+w = np.load('/track1/outputs/wham/${TAG}/wham_smpl_world.npz')
+n = w['vertices'].shape[0]
+import json
+human_report = json.loads(str(z['report']))
+wham_report = json.loads(str(w['report']))
+expected_tracks = wham_report.get('subjects', [wham_report['subject']])
 assert z['pose'].shape == (n, 136) and z['scales'].shape == (68,) and z['shape'].shape == (45,)
-assert all(np.isfinite(z[k]).all() for k in ('pose', 'scales', 'shape'))"
+assert all(np.isfinite(z[k]).all() for k in ('pose', 'scales', 'shape'))
+# Fits made before track selection existed carry no provenance and come from the single exported track.
+assert human_report.get('source_human_tracks', expected_tracks) == expected_tracks"
 if [[ -s "${TRACK1_ROOT}/outputs/human/${TAG}/mhr_human.npz" ]] && in_container mhr_converter.sif python -c "${CHECK}" 2>/dev/null; then
   echo "PASS: reusing validated WHAM -> MHR output for ${TAG}"
   exit 0

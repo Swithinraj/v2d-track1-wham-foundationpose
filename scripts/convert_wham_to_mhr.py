@@ -67,6 +67,7 @@ def main() -> None:
 
     source = np.load(args.input)
     vertices = np.asarray(source["vertices"], dtype=np.float32)
+    source_report = json.loads(str(source["report"])) if "report" in source.files else {}
     if vertices.ndim != 3 or vertices.shape[1:] != (6890, 3):
         raise SystemExit(f"ERROR: expected WHAM SMPL vertices [T,6890,3], got {vertices.shape}")
     if not np.isfinite(vertices).all():
@@ -111,6 +112,8 @@ def main() -> None:
         "topology_converter": "facebookresearch/MHR smpl2mhr_mapping.npz",
         "parameter_converter": "official v2d_submission_kit mesh_to_mhr_params.py",
         "coordinate_frame": "WHAM world metres; official fitter handles MHR native y/z and centimetres",
+        "source_human_tracks": source_report.get("subjects", [source_report.get("subject")]),
+        "source_selection": source_report.get("selection", "legacy_longest_track"),
         "fit": fit_report,
     }
     output = Path(args.output)

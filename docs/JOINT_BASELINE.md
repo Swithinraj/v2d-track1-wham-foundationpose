@@ -19,6 +19,22 @@ None of the generated object meshes is challenge ground truth. Each installed me
 `outputs/wham/episode_*/wham_smpl_world.npz` and `outputs/human/episode_*/mhr_human.npz`
 (WHAM world metres). See `docs/WHAM_BASELINE.md`.
 
+**Actor selection.** By default the export takes WHAM's longest person track. Two clips break that
+assumption, so `config/human_track_overrides.json` lists reviewed track fragments for them (chosen
+with DINOv3 wrist/object-mask covisibility in the separate `dinov3_contact` experiment, then checked
+against the video):
+
+- episode 2: tracks 1 → 2 (the longest track, 0, is a seated person in the background);
+- episode 15: tracks 0 → 4 (the actor's track is split in two).
+
+`scripts/export_wham_world_mesh.py --subjects` merges the fragments (later fragments win overlapping
+frames), shifts each later fragment's world translation to continue the previous one (episode 2's
+ID-switch jump 1.08 m → 3.9 cm, episode 15's 7.3 → 4.4 cm) and uses one median body shape across
+stitched fragments. Alignment takes each frame's keypoints from the fragment that produced it.
+Effect: episode 2's human moved from 6.76 m to 3.40 m from the camera (the actor's real position),
+its drift correction fell from 1.57 m to 0.19 m and its hands now meet the hoop (65% of frames,
+previously 0%); episode 15's human moved from 4.82 m to 3.42 m. Single-track episodes are unchanged.
+
 ## 2. Object meshes: TRELLIS candidates + FoundationPose selection
 
 `pipeline/stages/object_mesh.sh OBJECT` (GPU with compute capability 8.0+), once per object:
@@ -116,8 +132,9 @@ ring centre in cm/frame², FoundationPose smoothed → symmetric):
 
 Without ground truth these are proxies. The particle filter is stochastic: a re-run with a 0.1%
 different radius changed a few edge-on frames by up to 0.38 m but left per-frame IoU unchanged on
-average (≤ 0.008). Episode 2 still shows large axis swings in its fastest motion and gets no hand help,
-because its exported WHAM person is the seated background person (see "Known issues").
+average (≤ 0.008). With the corrected actor in episode 2, the hand prior became active there: same
+IoU (0.617 / 0.598 scored), axis-change p99 83° → 23° per frame, no more implausible depths
+(max 4.6 → 3.7 m), hand–ring distance 9.6 cm.
 
 ## 4. Joint alignment
 
@@ -173,13 +190,6 @@ COMMIT_URL=https://github.com/<owner>/<repo>/commit/<sha> bash pipeline/stages/p
 
 Uploading (`submit/v2d_submit.py ... --track track_1`) needs a Kaggle account and accepted rules
 for all five Track 1 competitions.
-
-## Known issues
-
-- WHAM person selection: `scripts/export_wham_world_mesh.py` exports the longest WHAM track. In
-  episode 2 that is a seated person in the background (half the size, visible all clip) rather than
-  the actor, and episode 15's actor track is split in two while another track is exported. Human
-  parameters and every object placement relative to the human are wrong for those episodes.
 
 ## Not yet done
 

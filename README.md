@@ -17,7 +17,7 @@ video ─┬─ WHAM ─ world-frame SMPL ─ Meta SMPL→MHR map + official MHR
 
 | Stage | What it does |
 |---|---|
-| Human | WHAM world-frame motion (DPVO rebuilt for the local GPUs), fitted to MHR `pose [T,136]`, `scales [68]`, `shape [45]` with Meta's topology map and the kit's `mesh_to_mhr_params.py` |
+| Human | WHAM world-frame motion (DPVO rebuilt for the local GPUs), DINOv3-reviewed actor-track overrides for ambiguous clips, fitted to MHR `pose [T,136]`, `scales [68]`, `shape [45]` with Meta's topology map and the kit's `mesh_to_mhr_params.py` |
 | Object inputs | GroundingDINO prompts (with reviewed overrides in `config/manual_object_prompts.json`) → SAM 2 masks; MoGe-2 metric depth and intrinsics |
 | Object mesh | TRELLIS candidates from the cleanest view in each of the object's three episodes (and all three together); de-plating; the candidate FoundationPose fits best across all three cameras wins; metric size from MoGe-2, refined within 0.75–1.33× |
 | Object track | FoundationPose registration and tracking, ESKF/RTS smoothing; the rotationally symmetric hula hoop instead gets a symmetry-aware particle filter + global optimisation (centre + axis line only, hand-contact prior, FoundationPose anchor while at rest) and an exactly round torus mesh |
@@ -104,8 +104,8 @@ Created at run time and ignored by git: `third_party/`, `official/`, `containers
 
 - All 30 episodes run end to end and pack into a valid 740,780-row Track 1 file. The reference is
   held out, so there is no local score; scores come from Kaggle.
-- Known issue: in episodes 2 and 15 the exported WHAM person is not the actor (see
-  `docs/JOINT_BASELINE.md`, "Known issues").
+- Episodes 2 and 15 use reviewed actor-track fragments from `config/human_track_overrides.json`;
+  other episodes retain the longest-track default.
 - CoCoNet refinement from CARI4D is not used: it needs SAM 3D Body decoder buffers that the
   accessible `nvidia/cari4d_commercial` checkpoint does not contain.
 - Generated meshes vary in quality (see `docs/JOINT_BASELINE.md`); `outputs/object_meshes/review_sheet.png`

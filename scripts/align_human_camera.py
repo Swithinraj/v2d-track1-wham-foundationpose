@@ -99,16 +99,30 @@ def main() -> None:
     wham_dir = ROOT / "outputs" / "wham" / tag
     object_dir = ROOT / "outputs" / "object" / tag
     export = np.load(wham_dir / "wham_smpl_world.npz")
-    subject = json.loads(str(export["report"]))["subject"]
+    export_report = json.loads(str(export["report"]))
+    subjects = export_report.get("subjects", [export_report["subject"]])
+    subject = subjects[0]
     vertices_w = export["vertices"].astype(np.float64)  # [T, 6890, 3], dense over video frames
-    observed = np.unique(export["source_frame_ids"].astype(np.int64))
+    observed = export["source_frame_ids"].astype(np.int64)
+    source_subjects = (export["source_subject_ids"].astype(np.int64)
+                       if "source_subject_ids" in export.files
+                       else np.full(len(observed), int(subject), dtype=np.int64))
 
     tracking = joblib.load(wham_dir / "tracking_results.pth")
-    track = tracking[int(subject)] if int(subject) in tracking else tracking[subject]
-    track_frames = np.asarray(track["frame_id"], dtype=np.int64)
-    keypoints = np.asarray(track["keypoints"], dtype=np.float64)  # [N, 17, 3] pixel x, y, confidence
-    keep = np.isin(track_frames, observed)
-    track_frames, keypoints = track_frames[keep], keypoints[keep]
+    keypoint_lookup = {}
+    for selected in subjects:
+        key = int(selected) if int(selected) in tracking else selected
+        track = tracking[key]
+        for frame, points in zip(np.asarray(track["frame_id"], dtype=np.int64),
+                                 np.asarray(track["keypoints"], dtype=np.float64)):
+            keypoint_lookup[(int(selected), int(frame))] = points
+    missing = [(int(selected), int(frame)) for frame, selected in zip(observed, source_subjects)
+               if (int(selected), int(frame)) not in keypoint_lookup]
+    if missing:
+        raise SystemExit(f"{tag}: selected WHAM keypoints missing for {missing[:5]}")
+    track_frames = observed
+    keypoints = np.stack([keypoint_lookup[(int(selected), int(frame))]
+                          for frame, selected in zip(observed, source_subjects)])
 
     regressor = np.load(COCO_REGRESSOR).astype(np.float64)  # [17, 6890]
     joints_w = np.einsum("jv,fvc->fjc", regressor, vertices_w[track_frames])  # [N, 17, 3]
@@ -174,6 +188,7 @@ def main() -> None:
         "schema": "v2d.track1.wham_camera_alignment.v1",
         "episode": args.episode,
         "subject": str(subject),
+        "subjects": [str(selected) for selected in subjects],
         "R_cw": rotation.tolist(),
         "t_cw": translation.tolist(),
         "intrinsics": k,

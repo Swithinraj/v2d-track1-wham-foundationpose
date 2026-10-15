@@ -1,0 +1,14 @@
+{
+  "schema": "v2d.track1.human_track_overrides.v1",
+  "method": "DINOv3 wrist/object-mask covisibility, reviewed against the video",
+  "episodes": {
+    "2": {
+      "subjects": [1, 2],
+      "note": "Actor identity switches after track 1 ends; track 0 is a seated background person."
+    },
+    "15": {
+      "subjects": [0, 4],
+      "note": "The foreground actor is split into two consecutive WHAM tracks."
+    }
+  }
+}
