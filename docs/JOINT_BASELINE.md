@@ -166,18 +166,32 @@ episode 8 (28.9 → 17.3 px, 1.27 m), episodes 2 and 11 (>1 m corrections).
    `episode_*_object.glb`, with
    `object_rotation = R_cwᵀ R_co`, `object_translation = R_cwᵀ (t_co / depth_scale − t_cw)`,
    `object_scale = s_co / depth_scale`.
-2. Optional hand–object penetration step (`RESOLVE_PEN=1`, off by default):
+2. Human depth-trend correction (`DEPTH_TREND=1`, on by default; `DEPTH_TREND_ALPHA`, default 0.75):
+   the scorer re-anchors every episode at its first scored frame, so only depth error that changes
+   over time costs CD-H, and WHAM's trajectory drifts in depth. `pipeline/stages/depth_trend.sh EP`
+   (`scripts/depth_trend_correction.py series`, WHAM image, CPU) measures, every third frame, the
+   ratio of MoGe-2 depth to the drift-corrected SMPL front-surface depth over the body's pixels,
+   divided by MoGe's own per-frame scale wobble on static background pixels (no body, no object) and
+   by its median → `outputs/depth_trend/<ep>.npz`. `depth_trend_correction.py apply` keeps only the
+   trend (median filter 15 frames, Gaussian σ 30 frames) and moves the MHR root along the camera ray
+   by α·(trend − 1)·centroid; body size and objects are unchanged →
+   `submissions/episodes_wham_fp_depth/` + `depth_trend_report.json`. Kaggle A/B against the same
+   pipeline without it: CD-H 23.14 → 21.48 cm, CD-O 31.23 → 29.91 cm, PEN 0.0106 → 0.0091,
+   ACC-H 0.2209 → 0.2208, ACC-O unchanged (a per-frame translation of the human changes the anchor
+   fit by a translation only).
+   A version gated by 2D-keypoint agreement scored worse (21.95), so it is applied to every episode.
+3. Optional hand–object penetration step (`RESOLVE_PEN=1`, off by default):
    `scripts/extract_mhr_hands.py` (MHR image) computes 512 hand points per frame (256 per hand:
    vertices whose dominant skinning joint lies in the wrist subtrees 42/78, fixed seed; an
    approximation of the scorer's host-side hand roles). `scripts/resolve_hand_penetration.py`
    measures penetration like the scorer (winding number against the budgeted object mesh, inverse
    Sim(3) pose) and, on penetrating frames of episodes with self-measured PEN ≥ 0.05 cm, translates
    the object away from the hand by the smallest bisected distance, then dilates and smooths the
-   offsets. Output: `submissions/episodes_wham_fp_pen/` + `penetration_report.json`.
+   offsets. Output: `<previous episode dir>_pen/` + `penetration_report.json`.
    Off by default because the baseline already has negligible penetration (self-measured PEN
    0.013 cm mean over 30 episodes). Only episodes 9, 27 and 29 crossed the threshold, and the push
    multiplied their object acceleration by 3–14× (episode 27 also got slightly worse PEN).
-3. The official `eval_reconstruction.py` packs and validates the Track 1 Parquet.
+4. The official `eval_reconstruction.py` packs and validates the Track 1 Parquet.
 
 `COMMIT_URL` must be the GitHub commit of the code that produced the run
 (`https://github.com/<owner>/<repo>/commit/<sha>`, visible to Nvidia-V2D-Challenge). Without it,

@@ -22,6 +22,7 @@ for e in ${EPISODES}; do
   bash "${STAGES}/wham_to_mhr.sh" "${e}"     # reuses a validated fit
   [[ -s "${TRACK1_ROOT}/outputs/alignment/${tag}/drift.npz" ]] || bash "${STAGES}/align.sh" "${e}"
   [[ -s "${TRACK1_ROOT}/outputs/hands/${tag}.npz" ]] || bash "${STAGES}/hands.sh" "${e}"
+  [[ -s "${TRACK1_ROOT}/outputs/depth_trend/${tag}.npz" ]] || bash "${STAGES}/depth_trend.sh" "${e}"
 done
 
 while read -r object; do

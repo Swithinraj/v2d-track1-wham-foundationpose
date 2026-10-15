@@ -78,15 +78,18 @@ Each stage is also a standalone script, so a cluster can run one task per episod
 | 2 | `pipeline/stages/align.sh EP` | episode | no | `outputs/alignment/<ep>/` |
 | 2 | `pipeline/stages/object_mesh.sh OBJECT` | object (3 episodes) | yes | `inputs/object_meshes/<object>.glb` |
 | 3 | `pipeline/stages/hands.sh EP` | episode | yes | `outputs/hands/<ep>.npz` |
+| 3 | `pipeline/stages/depth_trend.sh EP` | episode | no | `outputs/depth_trend/<ep>.npz` |
 | 3 | `pipeline/stages/track_object.sh EP` | episode | yes | `outputs/object/<ep>/foundationpose/` |
 | 4 | `pipeline/stages/track_symmetric.sh EP` | episode (symmetric objects only) | no | `outputs/object/<ep>/foundationpose/symmetric/` |
 | 5 | `pipeline/stages/pack.sh` | all | no | `submissions/*.parquet` |
 
 `EP` is 0–29. `object_mesh.sh` needs depth and masks of its object's three episodes; `align.sh`
-needs WHAM and depth; `hands.sh` needs WHAM→MHR and alignment; `track_symmetric.sh` needs tracking
+needs WHAM and depth; `hands.sh` needs WHAM→MHR and alignment; `depth_trend.sh` needs WHAM,
+alignment, depth and masks; `track_symmetric.sh` needs tracking
 and hands (it does nothing for objects not listed in `config/symmetric_objects.json`); `pack.sh`
 needs everything. Optional knobs are documented at the top of each
-script (e.g. `RESOLVE_PEN=1` for the hand–object penetration push, off by default).
+script (e.g. `DEPTH_TREND=0` turns off the human depth-trend correction, `RESOLVE_PEN=1` turns on
+the hand–object penetration push).
 
 ## Layout
 
