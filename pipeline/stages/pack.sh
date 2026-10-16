@@ -5,6 +5,9 @@
 #                                           default 0.75) -> submissions/episodes_wham_fp_depth/
 #   SMOOTH_SYMMETRIC=1 (default)         -> centre of symmetry-tracked objects smoothed (SMOOTH_SYMMETRIC_LAM,
 #                                           default 100) -> <previous dir>_smooth/
+#   HUMAN_REFINE=1 (default, needs a GPU) -> human motion smoothing, object-anchored hands, MediaPipe/RTS wrist
+#                                           fusion and lateral root RTS (stages/human_refine.sh, REFINE_LAM,
+#                                           default 100) -> <previous dir>_refine/
 #   RESOLVE_PEN=1 (optional)             -> hand points + penetration push -> <previous dir>_pen/
 #   official eval_reconstruction.py      -> submissions/*.parquet
 # COMMIT_URL=https://github.com/<owner>/<repo>/commit/<sha> makes the file uploadable; without it a
@@ -30,6 +33,12 @@ if [[ "${SMOOTH_SYMMETRIC:-1}" == 1 ]]; then
     --input "/track1/submissions/${EPISODES_NAME}" --out "/track1/submissions/${EPISODES_NAME}_smooth" \
     --lam "${SMOOTH_SYMMETRIC_LAM:-100}"
   EPISODES_NAME="${EPISODES_NAME}_smooth"
+fi
+if [[ "${HUMAN_REFINE:-1}" == 1 ]]; then
+  [[ "${DEPTH_TREND:-1}" == 1 ]] || { echo "HUMAN_REFINE=1 expects DEPTH_TREND=1" >&2; exit 2; }
+  bash "${TRACK1_ROOT}/pipeline/stages/human_refine.sh" "${EPISODES_NAME}" episodes_wham_fp_depth episodes_wham_fp \
+    "${EPISODES_NAME}_refine"
+  EPISODES_NAME="${EPISODES_NAME}_refine"
 fi
 if [[ "${RESOLVE_PEN:-0}" == 1 ]]; then
   in_container mhr_converter.sif python /track1/scripts/extract_mhr_hands.py \

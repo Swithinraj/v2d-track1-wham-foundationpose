@@ -23,6 +23,7 @@ for e in ${EPISODES}; do
   [[ -s "${TRACK1_ROOT}/outputs/alignment/${tag}/drift.npz" ]] || bash "${STAGES}/align.sh" "${e}"
   [[ -s "${TRACK1_ROOT}/outputs/hands/${tag}.npz" ]] || bash "${STAGES}/hands.sh" "${e}"
   [[ -s "${TRACK1_ROOT}/outputs/depth_trend/${tag}.npz" ]] || bash "${STAGES}/depth_trend.sh" "${e}"
+  [[ -s "${TRACK1_ROOT}/outputs/vitpose/${tag}.npz" ]] || bash "${STAGES}/keypoints2d.sh" "${e}"
 done
 
 while read -r object; do

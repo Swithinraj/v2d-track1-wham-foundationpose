@@ -22,6 +22,7 @@ video ─┬─ WHAM ─ world-frame SMPL ─ Meta SMPL→MHR map + official MHR
 | Object mesh | TRELLIS candidates from the cleanest view in each of the object's three episodes (and all three together); de-plating; the candidate FoundationPose fits best across all three cameras wins; metric size from MoGe-2, refined within 0.75–1.33× |
 | Object track | FoundationPose registration and tracking, ESKF/RTS smoothing; the rotationally symmetric hula hoop instead gets a symmetry-aware particle filter + global optimisation (centre + axis line only, hand-contact prior, FoundationPose anchor while at rest) and an exactly round torus mesh |
 | Alignment | One static-camera PnP per episode (WHAM joints vs. ViTPose keypoints, MoGe-2 intrinsics), low-frequency WHAM drift correction, MoGe/SMPL depth scale |
+| Refinement | Human depth drift removed with MoGe-2's depth trend; hula-hoop centre smoothed; human motion smoothed on the MHR mesh and refitted, hands anchored to the FoundationPose object in stable grasps, wrists corrected by an RTS smoother fusing MediaPipe 2D and those anchors, lateral root drift removed by an RTS smoother (checked against WHAM's ViTPose) |
 | Packing | Episode NPZ files → the official `eval_reconstruction.py` |
 
 Generated object meshes are estimates, never challenge ground truth; each installed mesh has a
@@ -48,6 +49,7 @@ bash pipeline/setup/build_dpvo.sh         # WHAM's DPVO for your GPUs (TORCH_CUD
 bash pipeline/setup/download_data.sh      # Track 1 videos + metadata (HF_TOKEN / HF_TOKEN_FILE if required)
 bash pipeline/setup/download_weights.sh   # all public checkpoints; derives SMPL faces once SMPL is in place
 bash pipeline/setup/setup_venv.sh         # host venv with the official kit's requirements (PYTHON=...)
+bash pipeline/setup/setup_mediapipe.sh    # host venv with MediaPipe + its two pinned models (2D keypoints)
 ```
 
 All pins (upstream commits, dataset revision, weight revisions, checksums) are in
@@ -79,17 +81,19 @@ Each stage is also a standalone script, so a cluster can run one task per episod
 | 2 | `pipeline/stages/object_mesh.sh OBJECT` | object (3 episodes) | yes | `inputs/object_meshes/<object>.glb` |
 | 3 | `pipeline/stages/hands.sh EP` | episode | yes | `outputs/hands/<ep>.npz` |
 | 3 | `pipeline/stages/depth_trend.sh EP` | episode | no | `outputs/depth_trend/<ep>.npz` |
+| 3 | `pipeline/stages/keypoints2d.sh EP` | episode | no | `outputs/{mediapipe,vitpose}/<ep>.npz` |
 | 3 | `pipeline/stages/track_object.sh EP` | episode | yes | `outputs/object/<ep>/foundationpose/` |
 | 4 | `pipeline/stages/track_symmetric.sh EP` | episode (symmetric objects only) | no | `outputs/object/<ep>/foundationpose/symmetric/` |
-| 5 | `pipeline/stages/pack.sh` | all | no | `submissions/*.parquet` |
+| 5 | `pipeline/stages/pack.sh` (runs `human_refine.sh`) | all | yes (refinement) | `submissions/*.parquet` |
 
 `EP` is 0–29. `object_mesh.sh` needs depth and masks of its object's three episodes; `align.sh`
 needs WHAM and depth; `hands.sh` needs WHAM→MHR and alignment; `depth_trend.sh` needs WHAM,
-alignment, depth and masks; `track_symmetric.sh` needs tracking
+alignment, depth and masks; `keypoints2d.sh` needs WHAM; `track_symmetric.sh` needs tracking
 and hands (it does nothing for objects not listed in `config/symmetric_objects.json`); `pack.sh`
-needs everything. Optional knobs are documented at the top of each
-script (e.g. `DEPTH_TREND=0` turns off the human depth-trend correction, `SMOOTH_SYMMETRIC=0` the
-hoop-centre smoothing, `RESOLVE_PEN=1` turns on the hand–object penetration push).
+needs everything and, for the human refinement (on by default), a GPU. Optional knobs are documented
+at the top of each script (e.g. `DEPTH_TREND=0` turns off the human depth-trend correction,
+`SMOOTH_SYMMETRIC=0` the hoop-centre smoothing, `HUMAN_REFINE=0` the human refinement,
+`RESOLVE_PEN=1` turns on the hand–object penetration push).
 
 ## Layout
 
@@ -98,6 +102,7 @@ pipeline/      env.sh, run_all.sh, setup/ (one-time), stages/ (per episode/objec
 scripts/       Python run inside the images (and the host venv for packing)
 config/        Apptainer definitions, upstream pins, reviewed object prompts, symmetric objects
 docs/          design notes and results
+reports/       dated progress reports with every Kaggle score
 ```
 
 Created at run time and ignored by git: `third_party/`, `official/`, `containers/`, `weights/`,
@@ -106,7 +111,9 @@ Created at run time and ignored by git: `third_party/`, `official/`, `containers
 ## Status and limits
 
 - All 30 episodes run end to end and pack into a valid 740,780-row Track 1 file. The reference is
-  held out, so there is no local score; scores come from Kaggle.
+  held out, so there is no local score; scores come from Kaggle. Latest scores of this pipeline:
+  CD-H 20.96 cm, CD-O 29.37 cm, ACC-H 0.142 cm/frame², ACC-O 0.077 cm/frame², PEN 0.0082 cm; every
+  submission and what each change did: [`reports/report_day_track1.md`](reports/report_day_track1.md).
 - Episodes 2 and 15 use reviewed actor-track fragments from `config/human_track_overrides.json`;
   other episodes retain the longest-track default.
 - CoCoNet refinement from CARI4D is not used: it needs SAM 3D Body decoder buffers that the
@@ -118,4 +125,4 @@ References: [challenge](https://nvidia-isaac.github.io/video_to_data/v2d_challen
 [toolkit](https://github.com/nvidia-isaac/video_to_data) ·
 [Track 1 data](https://huggingface.co/datasets/nvidia/video_to_data_challenge/tree/main/track_1) ·
 [WHAM](https://github.com/yohanshin/WHAM) · [MHR](https://github.com/facebookresearch/MHR) ·
-[TRELLIS](https://github.com/microsoft/TRELLIS)
+[TRELLIS](https://github.com/microsoft/TRELLIS) · [MediaPipe](https://github.com/google-ai-edge/mediapipe)

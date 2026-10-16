@@ -191,7 +191,37 @@ episode 8 (28.9 → 17.3 px, 1.27 m), episodes 2 and 11 (>1 m corrections).
    0.0769, CD-O 29.91 → 29.89 cm (λ 10: 0.0868 / 29.91). Coupling the centre's velocity to the
    grasping MHR hand instead lowered the silhouette IoU: the hands are noisier than the track, and for
    every rigid object the hand-carried pose is 5–30× jerkier than FoundationPose's.
-4. Optional hand–object penetration step (`RESOLVE_PEN=1`, off by default):
+4. Human refinement (`HUMAN_REFINE=1`, on by default, needs a GPU; `REFINE_LAM`, default 100;
+   `pipeline/stages/human_refine.sh`). WHAM leaves frame-level jitter on the body: our 22 scored joints had
+   a self-acceleration of 0.185 cm/frame² (wrists 0.39, elbows 0.24), and WHAM's own joints are just as
+   jerky, so the fix is at motion level. Per-episode 2D keypoints come from `pipeline/stages/keypoints2d.sh`
+   (MediaPipe pose + hand landmarks on upscaled wrist crops, `pipeline/setup/setup_mediapipe.sh`; WHAM's own
+   ViTPose keypoints as the held-out check).
+   - `scripts/human_refit.py` (MHR image): MHR Euler parameters wrap by multiples of 2π, so the motion is
+     smoothed on the mesh (per-vertex `argmin |X − V|² + λ|D²X|²`) and every frame's 136 pose parameters are
+     re-fitted to it with the kit's `lm_pose` (identity fixed, fit error 0.04–0.3 mm).
+   - `scripts/grasp_windows.py`, `scripts/hand_anchors.py`: grasp windows (hand within 5 cm of the moving
+     object). FoundationPose is 5–30× smoother than the hand-carried pose for every rigid object, so the
+     object is never pulled by the hand. Where the hand-object relative pose is stable (< 5 cm, < 20°), the
+     hand's mean shape in the object frame (pushed out of the surface, ≤ 3 cm) is re-posed with the object
+     track and blended in/out over 15 frames.
+   - `scripts/wrist_fusion.py`: per hand, a constant-velocity RTS smoother (forward Kalman filter +
+     backward pass) of a camera-frame wrist offset. The λ 10 refit is the process model, MediaPipe wrists
+     observe only the lateral components (2D cannot see depth), object anchors observe all three tightly,
+     and no 2D update happens while the hand is within 5 cm of the object. Residuals > 40 px are dropped and
+     offsets are capped at 10 cm.
+   - `scripts/root_lateral.py`: a constant-velocity RTS smoother of the body's lateral offset from 12
+     MediaPipe joints (per-joint definitional bias removed), applied only where WHAM's ViTPose error also
+     drops by > 5 % (episodes 1, 8, 17, 20, 26).
+   Sequence: λ 10 refit (process model) → wrist fusion → λ 100 refit with fused wrists and anchored hands
+   → λ 100 second pass → lateral root fix → `<previous dir>_refine/`.
+   Kaggle A/B against the same pipeline without it: CD-H 21.48 → 20.96 cm, CD-O 29.89 → 29.37 cm,
+   ACC-H 0.2208 → 0.1424, PEN 0.0091 → 0.0082, ACC-O unchanged (0.0769 → 0.0770). Smoothing alone gives
+   the ACC-H gain (λ 10 / 30 / 100 / 300: 0.153 / 0.147 / 0.143 / 0.142) but barely moves CD-H (21.46);
+   the CD-H gain comes from the anchored hands, the wrist fusion and the lateral root fix.
+   Known gap: episode 24 has WHAM front/back flips in about 25 % of its scored frames (MediaPipe and ViTPose
+   both prefer our body with left/right swapped); not fixed.
+5. Optional hand–object penetration step (`RESOLVE_PEN=1`, off by default):
    `scripts/extract_mhr_hands.py` (MHR image) computes 512 hand points per frame (256 per hand:
    vertices whose dominant skinning joint lies in the wrist subtrees 42/78, fixed seed; an
    approximation of the scorer's host-side hand roles). `scripts/resolve_hand_penetration.py`
@@ -202,7 +232,7 @@ episode 8 (28.9 → 17.3 px, 1.27 m), episodes 2 and 11 (>1 m corrections).
    Off by default because the baseline already has negligible penetration (self-measured PEN
    0.013 cm mean over 30 episodes). Only episodes 9, 27 and 29 crossed the threshold, and the push
    multiplied their object acceleration by 3–14× (episode 27 also got slightly worse PEN).
-5. The official `eval_reconstruction.py` packs and validates the Track 1 Parquet.
+6. The official `eval_reconstruction.py` packs and validates the Track 1 Parquet.
 
 `COMMIT_URL` must be the GitHub commit of the code that produced the run
 (`https://github.com/<owner>/<repo>/commit/<sha>`, visible to Nvidia-V2D-Challenge). Without it,
