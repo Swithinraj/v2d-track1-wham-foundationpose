@@ -24,10 +24,13 @@ source "${TRACK1_ROOT}/config/upstream.env"
 # in_container IMAGE COMMAND...: run COMMAND in containers/IMAGE with the GPU, the repository at
 # /track1 and a writable HOME. (Apptainer refuses --env HOME=..., which would leave HOME on the
 # unmounted host home; warp and matplotlib then fail to create their caches.)
+# TRACK1_EXTRA_BINDS (optional, space-separated host directories) are mounted read-only at the same
+# path, for checkouts whose data directories are symlinks to another location.
 in_container() {
-  local image="$1"
+  local image="$1" extra=() dir
   shift
-  apptainer exec --nv --no-home --cleanenv --bind "${TRACK1_ROOT}:/track1" --pwd /track1 \
+  for dir in ${TRACK1_EXTRA_BINDS:-}; do extra+=(--bind "${dir}:${dir}:ro"); done
+  apptainer exec --nv --no-home --cleanenv --bind "${TRACK1_ROOT}:/track1" ${extra[@]+"${extra[@]}"} --pwd /track1 \
     "${CONTAINERS}/${image}" env HOME=/tmp MPLCONFIGDIR=/tmp/mpl "$@"
 }
 

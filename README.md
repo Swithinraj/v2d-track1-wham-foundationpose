@@ -50,6 +50,7 @@ bash pipeline/setup/download_data.sh      # Track 1 videos + metadata (HF_TOKEN 
 bash pipeline/setup/download_weights.sh   # all public checkpoints; derives SMPL faces once SMPL is in place
 bash pipeline/setup/setup_venv.sh         # host venv with the official kit's requirements (PYTHON=...)
 bash pipeline/setup/setup_mediapipe.sh    # host venv with MediaPipe + its two pinned models (2D keypoints)
+bash pipeline/setup/download_sam3d_body.sh  # optional SAM 3D Body human: gated HF model (HF_TOKEN / HF_TOKEN_FILE)
 ```
 
 All pins (upstream commits, dataset revision, weight revisions, checksums) are in
@@ -82,6 +83,7 @@ Each stage is also a standalone script, so a cluster can run one task per episod
 | 3 | `pipeline/stages/hands.sh EP` | episode | yes | `outputs/hands/<ep>.npz` |
 | 3 | `pipeline/stages/depth_trend.sh EP` | episode | no | `outputs/depth_trend/<ep>.npz` |
 | 3 | `pipeline/stages/keypoints2d.sh EP` | episode | no | `outputs/{mediapipe,vitpose}/<ep>.npz` |
+| 4 | `pipeline/stages/sam3d_body.sh EP` (optional, `HUMAN=sam3d`) | episode | yes | `outputs/sam3d_body/<ep>/` |
 | 3 | `pipeline/stages/track_object.sh EP` | episode | yes | `outputs/object/<ep>/foundationpose/` |
 | 4 | `pipeline/stages/track_symmetric.sh EP` | episode (symmetric objects only) | no | `outputs/object/<ep>/foundationpose/symmetric/` |
 | 5 | `pipeline/stages/pack.sh` (runs `human_refine.sh`) | all | yes (refinement) | `submissions/*.parquet` |
@@ -94,6 +96,16 @@ needs everything and, for the human refinement (on by default), a GPU. Optional 
 at the top of each script (e.g. `DEPTH_TREND=0` turns off the human depth-trend correction,
 `SMOOTH_SYMMETRIC=0` the hoop-centre smoothing, `HUMAN_REFINE=0` the human refinement,
 `RESOLVE_PEN=1` turns on the hand–object penetration push).
+
+**SAM 3D Body human (optional).** `pipeline/stages/sam3d_body.sh EP` runs SAM 3D Body on every frame of the
+selected actor (box from the actor's ViTPose keypoints, MoGe-2 intrinsics), fixes one shared body identity per
+episode and refits every frame with it (needs `keypoints2d.sh` and `align.sh` for the episode). Then
+`HUMAN=sam3d RESOLVE_PEN=1 bash pipeline/stages/pack.sh` assembles the episodes in the static camera's frame (objects
+mapped with the MoGe/SAM depth scale; no WHAM alignment), applies the depth-trend correction and the human refinement
+(λ 300) in that frame and the penetration push. `DEPTH_TREND=0` keeps SAM 3D Body's own depth;
+`OBJECT_FOLLOW_HUMAN=1` (with `DEPTH_TREND=0`) lets the object depth follow the human's smoothed depth trend.
+Kaggle probe of this configuration on 2026-10-16 (cbb430a reference in brackets): CD-O 25.22105 (29.36947),
+PEN 0.00575 (0.00822), ACC-O 0.07770 without the push (0.07700).
 
 ## Layout
 

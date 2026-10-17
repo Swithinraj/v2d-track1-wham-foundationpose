@@ -1,0 +1,39 @@
+Bootstrap: docker
+From: pytorch/pytorch:2.5.1-cuda12.4-cudnn9-devel
+
+# SAM 3D Body (facebook/sam-3d-body-dinov3, gated) runtime, translated from the official toolkit's
+# reconstruction/modules/v2d_sam3d_body/docker/Dockerfile. Build from the repository root
+# (pipeline/setup/build_containers.sh sam3d_body): %files paths are relative.
+%labels
+    org.opencontainers.image.source https://github.com/nvidia-isaac/video_to_data
+    org.opencontainers.image.revision 193382a184308f6800331f3db829f76dc4294cfe
+    org.opencontainers.image.description "V2D SAM 3D Body (MHR human) runtime for Track 1"
+
+%files
+    third_party/video_to_data/reconstruction/modules/v2d_common /workspace/v2d_common
+    third_party/video_to_data/reconstruction/modules/v2d_mv /workspace/v2d_mv
+    third_party/video_to_data/reconstruction/modules/v2d_sam3d_body /workspace/v2d_sam3d_body
+
+%post
+    set -eux
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update
+    apt-get install -y libgl1 libglib2.0-0 git zip libosmesa6-dev libegl1-mesa-dev libspatialindex-dev
+    rm -rf /var/lib/apt/lists/*
+
+    pip install pytorch-lightning pyrender opencv-python yacs scikit-image einops timm dill \
+        pandas rich hydra-core hydra-submitit-launcher hydra-colorlog pyrootutils \
+        networkx==3.2.1 roma joblib cython jsonlines loguru optree fvcore pycocotools \
+        tensorboard huggingface_hub webdataset rtree
+    FORCE_CUDA=1 TORCH_CUDA_ARCH_LIST="8.0 8.6 8.9 9.0" \
+        pip install "git+https://github.com/facebookresearch/pytorch3d.git@v0.7.9"
+    pip install py-soma-x==0.2.1
+    pip install -e "/workspace/v2d_common[io]"
+    pip install -e "/workspace/v2d_mv[math,vis]"
+    pip install -e /workspace/v2d_sam3d_body/lib
+    PYTHONPATH=/workspace/v2d_sam3d_body/lib PYOPENGL_PLATFORM=egl python -c "import pytorch3d, roma, sam_3d_body; print('sam3d_body_imports=pass')"
+
+%environment
+    export PYTHONPATH=/workspace/v2d_sam3d_body/lib
+    export PYOPENGL_PLATFORM=egl
+    export TORCH_HOME=/tmp/torch_cache
