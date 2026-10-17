@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
-"""Generate coarse metric-scale mesh candidates for one Track 1 object with TRELLIS image-to-3D.
+"""Generate metric mesh candidates for one Track 1 object with SAM 3D Objects (image + mask + MoGe depth -> mesh).
 
-Runs inside containers/v2d_sam3d.sif with the workspace mounted at /track1. The public
-challenge release has no object meshes, so this follows the "object mesh unknown" branch
-of the baseline plan: pick a clean, unoccluded view of the object in each of its three
-episodes from the SAM 2 masks, generate meshes with TRELLIS (each view alone and all views
-together, several seeds), and give each an approximate metric size from MoGe-2 depth.
-scripts/select_object_mesh.py then keeps the candidate FoundationPose fits best in all three
-cameras and refines its scale.
+Runs inside containers/v2d_sam3d.sif (the SAM 3D Objects runtime) with the workspace mounted at /track1. The public
+release has no object meshes: pick a clean, unoccluded view of the object in each of its three episodes from the
+SAM 2 masks (as before), and run SAM 3D Objects on each view with that frame's MoGe-2 depth as the scene point map,
+several seeds. SAM 3D Objects returns the mesh and its pose and SCALE in the camera frame, grounded in the scene's
+metric depth, so each candidate is metric directly (no depth-extent heuristic). scripts/select_object_mesh.py then
+keeps the candidate FoundationPose fits best in all three cameras and refines its scale.
 
-Outputs under outputs/object_meshes/<object>/:
-  views/                       contact sheet of view candidates and the RGBA condition crops
-  candidates/cXX/trellis_raw.glb      TRELLIS mesh in its normalized unit cube (y-up)
-  candidates/cXX/coarse_metric.glb    the same mesh scaled to the depth-derived extent
-  scale_frames/episode_*/      rgb/mask/depth/intrinsics of each episode's best view
-  provenance.json              views, scores, candidates, coarse scales
+Outputs under outputs/object_meshes/<object>/sam3d/:
+  views/                         contact sheet of view candidates and the RGBA condition crops
+  candidates/cXX/sam3d_raw.glb   SAM 3D Objects mesh in its own frame (+ transform.json, intrinsics.json)
+  candidates/cXX/coarse_metric.glb    cleaned, decimated, centred, scaled by SAM 3D Objects' metric scale
+  scale_frames/episode_*/        rgb/mask/depth/intrinsics of each episode's best view
+  provenance.json                views, scores, candidates, scales
+Weights: weights/sam3d_objects (pipeline/setup/download_sam3d_objects.sh; gated facebook/sam-3d-objects).
 These meshes are generated estimates, never challenge ground truth.
 """
 
@@ -25,7 +25,6 @@ import json
 import os
 import shutil
 import sys
-import types
 from pathlib import Path
 
 import cv2
@@ -36,10 +35,9 @@ ROOT = Path(os.environ.get("TRACK1_ROOT") or Path(__file__).resolve().parents[1]
 DATA = ROOT / "data" / "track_1"
 OBJECT_OUT = ROOT / "outputs" / "object"
 MESH_OUT = ROOT / "outputs" / "object_meshes"
-TRELLIS_WEIGHTS = ROOT / "weights" / "trellis" / "TRELLIS-image-large"
+SAM3D_WEIGHTS = ROOT / "weights" / "sam3d_objects"
 MANUAL_VIEWS = ROOT / "config" / "manual_mesh_views.json"
 TARGET_FACES = 40_000
-PLATE_DARK = 0.1  # max RGB channel below which a TRELLIS vertex counts as plate-dark
 
 
 def episodes_for(object_name: str) -> list[int]:
@@ -95,7 +93,7 @@ def mask_iou(a: np.ndarray, b: np.ndarray) -> float:
 
 
 def score_episode_views(episode: int, stride: int, stability_gap: int) -> list[dict]:
-    """Score every stride-th frame for use as a clean TRELLIS condition image.
+    """Score every stride-th frame for use as a clean SAM 3D Objects condition image.
 
     A good view is large (more pixels for the image encoder), compact relative to the
     episode's best compactness (hands and bodies carve concavities and split masks), not
@@ -141,7 +139,7 @@ def score_episode_views(episode: int, stride: int, stability_gap: int) -> list[d
 
 
 def rgba_crop(rgb: np.ndarray, mask: np.ndarray) -> Image.Image:
-    """Full-frame RGBA with the SAM 2 mask as alpha; TRELLIS crops and centres it itself."""
+    """Full-frame RGBA with the SAM 2 mask as alpha (saved as the audit copy of each condition view)."""
     alpha = cv2.GaussianBlur(mask.astype(np.float32), (3, 3), 0)
     rgba = np.dstack([rgb, (alpha * 255).astype(np.uint8)])
     return Image.fromarray(rgba, "RGBA")
@@ -192,77 +190,27 @@ def principal_extent(points: np.ndarray) -> float:
     return float(spans.max())
 
 
-def install_import_shims() -> None:
-    """TRELLIS imports rembg, transformers, and open3d at package import time.
+def sam3d_mesh(episode: int, frame: int, rgb: np.ndarray, seed: int, work: Path):
+    """SAM 3D Objects on one view, grounded in that frame's MoGe depth: returns (trimesh, metric scale) or None."""
+    import trimesh
+    from v2d.sam3d.lib.image_to_mesh import image_to_mesh
 
-    The image pipeline only calls rembg when the input has no alpha channel, and only the
-    text-to-3D pipeline uses transformers and open3d (whose wheel in the SAM3D image also
-    lacks libusb). We always pass an RGBA image with the SAM 2 mask, so none of them is used;
-    these stand-ins fail loudly if that assumption is ever broken.
-    """
-    def unavailable(name):
-        def fail(*_args, **_kwargs):
-            raise RuntimeError(f"{name} is not installed in this image and should not be needed")
-        return fail
-
-    if "rembg" not in sys.modules:
-        rembg = types.ModuleType("rembg")
-        rembg.new_session = unavailable("rembg.new_session")
-        rembg.remove = unavailable("rembg.remove")
-        sys.modules["rembg"] = rembg
-    try:
-        import open3d  # noqa: F401
-    except ImportError:
-        open3d = types.ModuleType("open3d")
-        # trellis_text_to_3d uses o3d.geometry.TriangleMesh in a signature annotation.
-        open3d.geometry = types.SimpleNamespace(TriangleMesh=type("TriangleMesh", (), {}))
-        sys.modules["open3d"] = open3d
-    try:
-        import transformers  # noqa: F401
-    except ImportError:
-        shim = types.ModuleType("transformers")
-        for name in ("CLIPTextModel", "AutoTokenizer"):
-            setattr(shim, name, type(name, (), {"from_pretrained": staticmethod(unavailable(f"transformers.{name}"))}))
-        sys.modules["transformers"] = shim
-
-
-def load_pipeline():
-    install_import_shims()
-    sys.path.insert(0, str(ROOT / "third_party" / "TRELLIS"))
-    from trellis.pipelines import TrellisImageTo3DPipeline
-
-    pipeline = TrellisImageTo3DPipeline.from_pretrained(str(TRELLIS_WEIGHTS))
-    pipeline.cuda()
-    return pipeline
-
-
-def trellis_mesh(pipeline, condition: list[Image.Image], seed: int):
-    import torch
-
-    sampler = dict(sparse_structure_sampler_params={"steps": 25, "cfg_strength": 7.5},
-                   slat_sampler_params={"steps": 25, "cfg_strength": 3.0})
-    with torch.no_grad():
-        if len(condition) == 1:
-            outputs = pipeline.run(condition[0], seed=seed, formats=["mesh"], **sampler)
-        else:
-            outputs = pipeline.run_multi_image(condition, seed=seed, formats=["mesh"], mode="stochastic", **sampler)
-    mesh = outputs["mesh"][0]
-    if not mesh.success:
+    work.mkdir(parents=True, exist_ok=True)
+    tag = f"episode_{episode:06d}"
+    Image.fromarray(rgb).save(work / "image.png")
+    shutil.copy(OBJECT_OUT / tag / "sam2_masks" / "1" / f"{frame:06d}.png", work / "mask.png")
+    image_to_mesh(image_path=str(work / "image.png"), mask_path=str(work / "mask.png"),
+                  mesh_path=str(work / "sam3d_raw.glb"), transform_path=str(work / "transform.json"),
+                  intrinsics_path=str(work / "intrinsics.json"), weights_dir=str(SAM3D_WEIGHTS), seed=seed,
+                  depth_path=str(OBJECT_OUT / tag / "depth" / f"{frame:06d}.png"),
+                  depth_intrinsics_path=str(OBJECT_OUT / tag / "intrinsics" / f"{frame:06d}.json"))
+    if not (work / "sam3d_raw.glb").is_file():
         return None
-    vertices = mesh.vertices.detach().cpu().numpy().astype(np.float64)
-    faces = mesh.faces.detach().cpu().numpy().astype(np.int64)
-    colors = np.clip(mesh.vertex_attrs[:, :3].detach().float().cpu().numpy(), 0.0, 1.0)
-    return vertices, faces, colors
-
-
-def plate_suspect(vertices: np.ndarray, colors: np.ndarray) -> bool:
-    """TRELLIS sometimes embeds dim, top-down objects in a dark plate filling the whole grid."""
-    return bool(sorted(np.ptp(vertices, axis=0))[-2] > 0.97 and (colors.max(axis=1) < PLATE_DARK).mean() > 0.4)
-
-
-def remove_plate(vertices: np.ndarray, faces: np.ndarray, colors: np.ndarray):
-    """Drop faces whose vertices are all near-black; the embedded object keeps its own colours."""
-    return vertices, faces[~(colors.max(axis=1) < PLATE_DARK)[faces].all(axis=1)], colors
+    mesh = trimesh.load(work / "sam3d_raw.glb", force="mesh")
+    if len(mesh.faces) == 0:
+        return None
+    scale = json.loads((work / "transform.json").read_text()).get("scale", [1.0, 1.0, 1.0])
+    return mesh, float(np.mean(scale))
 
 
 def clean_mesh(vertices: np.ndarray, faces: np.ndarray, colors: np.ndarray, keep_fraction: float = 0.02):
@@ -287,8 +235,6 @@ def clean_mesh(vertices: np.ndarray, faces: np.ndarray, colors: np.ndarray, keep
         nearest = cKDTree(source_vertices).query(decimated_vertices)[1]
         mesh = trimesh.Trimesh(decimated_vertices, decimated_faces,
                                vertex_colors=source_colors[nearest], process=True)
-    # TRELLIS is z-up; glTF is y-up (same rotation as trellis.utils.postprocessing_utils.to_glb).
-    mesh.vertices = mesh.vertices @ np.array([[1, 0, 0], [0, 0, -1], [0, 1, 0]], dtype=np.float64)
     mesh.vertices -= mesh.bounds.mean(axis=0)
     return mesh
 
@@ -308,7 +254,7 @@ def main() -> None:
     parser.add_argument("--seeds", type=int, nargs="+", default=[1, 2])
     args = parser.parse_args()
 
-    out = MESH_OUT / args.object
+    out = MESH_OUT / args.object / "sam3d"
     views_dir = out / "views"
     if out.exists():
         shutil.rmtree(out)
@@ -340,17 +286,11 @@ def main() -> None:
     if tiles:
         contact_sheet(tiles, views_dir / "candidates.jpg")
 
-    # Each episode's best view, and all of them together, condition TRELLIS. Single-view
-    # generations from these small exo crops are semantically unstable (benches, dishes,
-    # plates), so every condition/seed pair becomes a candidate and
-    # scripts/select_object_mesh.py keeps the one FoundationPose fits best in all cameras.
+    # Each episode's best view conditions SAM 3D Objects (single image, grounded in that frame's depth).
     images = {}
     for e, view in sorted(best_per_episode.items()):
         images[e] = rgba_crop(decoded[e][view["frame"]], load_mask(e, view["frame"]))
         images[e].save(views_dir / f"condition_ep{e:06d}_f{view['frame']:06d}.png")
-    conditions = [([e], [images[e]]) for e in sorted(images)]
-    if len(images) > 1:
-        conditions.append((sorted(images), [images[e] for e in sorted(images)]))
 
     observed = {}
     for e, view in sorted(best_per_episode.items()):
@@ -364,52 +304,36 @@ def main() -> None:
         shutil.copy(OBJECT_OUT / f"episode_{e:06d}" / "depth" / f"{view['frame']:06d}.png", frame_dir / "depth.png")
         shutil.copy(OBJECT_OUT / f"episode_{e:06d}" / "intrinsics" / f"{view['frame']:06d}.json", frame_dir / "intrinsics.json")
 
-    pipeline = load_pipeline()
     candidates = []
     generated = 0
-    for condition_episodes, condition_images in conditions:
+    for e, view in sorted(best_per_episode.items()):
         for seed in args.seeds:
             cid = f"c{generated:02d}"
             generated += 1
-            result = trellis_mesh(pipeline, condition_images, seed)
-            entry = {"id": cid, "condition_episodes": condition_episodes, "seed": seed}
+            cdir = out / "candidates" / cid
+            entry = {"id": cid, "condition_episodes": [e], "condition_frame": view["frame"], "seed": seed}
+            result = sam3d_mesh(e, view["frame"], decoded[e][view["frame"]], seed, cdir)
             if result is None:
-                candidates.append({**entry, "status": "empty"})
+                candidates.append({**entry, "status": "empty", "plate_suspect": False})
                 continue
-            vertices, faces, colors = result
-            plate = plate_suspect(vertices, colors)
-            variants = [(cid, entry, (vertices, faces, colors), 0.02, plate)]
-            if plate:
-                # A de-plated copy usually recovers the embedded object; a genuinely black object
-                # would lose itself instead, so the raw mesh stays a candidate too.
-                variants.append((f"{cid}d", {**entry, "id": f"{cid}d", "derived_from": cid, "deplated": True},
-                                 remove_plate(vertices, faces, colors), 0.05, False))
-            for vid, ventry, (v, f, c), keep_fraction, vplate in variants:
-                if len(f) == 0:
-                    candidates.append({**ventry, "status": "empty"})
-                    continue
-                mesh = clean_mesh(v, f, c, keep_fraction)
-                mesh_extent = principal_extent(np.asarray(mesh.sample(30000)))
-                coarse = float(np.median([o["observed_extent_m"] / mesh_extent for o in observed.values()]))
-                cdir = out / "candidates" / vid
-                cdir.mkdir(parents=True)
-                mesh.export(cdir / "trellis_raw.glb")
-                metric = mesh.copy()
-                metric.apply_scale(coarse)
-                metric.export(cdir / "coarse_metric.glb")
-                candidates.append({**ventry, "status": "ok", "plate_suspect": vplate,
-                                   "faces": int(len(mesh.faces)), "normalized_principal_extent": mesh_extent,
-                                   "coarse_scale": coarse, "coarse_extents_m": [float(x) for x in metric.extents]})
-                print(json.dumps(candidates[-1]), flush=True)
+            raw, scale = result
+            v = np.asarray(raw.vertices, dtype=np.float64)
+            f = np.asarray(raw.faces, dtype=np.int64)
+            vc = raw.visual.to_color().vertex_colors if raw.visual.kind != "vertex" else raw.visual.vertex_colors
+            mesh = clean_mesh(v, f, np.asarray(vc)[:, :3] / 255.0, 0.02)
+            metric = mesh.copy()
+            metric.apply_scale(scale)
+            metric.export(cdir / "coarse_metric.glb")
+            candidates.append({**entry, "status": "ok", "plate_suspect": False, "faces": int(len(mesh.faces)),
+                               "coarse_scale": scale, "coarse_extents_m": [float(x) for x in metric.extents]})
+            print(json.dumps(candidates[-1]), flush=True)
 
     provenance = {
         "schema": "v2d.track1.generated_object_mesh.v2",
         "object": args.object,
         "ground_truth": False,
-        "generator": {"model": "microsoft/TRELLIS-image-large",
-                      "revision": (TRELLIS_WEIGHTS / "REVISION").read_text().strip(),
-                      "sampler": {"sparse_structure": {"steps": 25, "cfg_strength": 7.5},
-                                  "slat": {"steps": 25, "cfg_strength": 3.0}}},
+        "generator": {"model": "facebook/sam-3d-objects", "grounding": "MoGe-2 depth of the condition frame",
+                      "weights": str(SAM3D_WEIGHTS.relative_to(ROOT))},
         "condition_views": [{k: observed[e][k] for k in ("episode", "frame", "source", "score")} for e in sorted(observed)],
         "per_episode": [observed[e] for e in sorted(observed)],
         "candidates": candidates,
@@ -418,9 +342,8 @@ def main() -> None:
     (out / "provenance.json").write_text(json.dumps(provenance, indent=2))
     usable = [c for c in candidates if c["status"] == "ok"]
     if not usable:
-        raise SystemExit(f"{args.object}: TRELLIS produced no usable candidate")
-    print(f"PASS: {len(usable)} TRELLIS mesh candidates for {args.object} "
-          f"({sum(c['plate_suspect'] for c in usable)} plate-suspect)")
+        raise SystemExit(f"{args.object}: SAM 3D Objects produced no usable candidate")
+    print(f"PASS: {len(usable)} SAM 3D Objects mesh candidates for {args.object}")
 
 
 if __name__ == "__main__":

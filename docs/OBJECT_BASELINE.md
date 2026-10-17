@@ -1,7 +1,6 @@
-# Non-gated Track 1 object branch
+# Track 1 object branch: masks, depth and FoundationPose tracking
 
-This branch prepares the released monocular videos for object-pose estimation while SAM 3D Body
-access is pending:
+The object branch prepares the released monocular videos for object-pose estimation:
 
 1. GroundingDINO uses each episode's released `object_prompt` on sparse frames.
 2. The strongest detections seed SAM 2.1 propagation across the complete video.
@@ -49,7 +48,7 @@ must be replaced before FoundationPose. Reviewed box or positive/negative point 
 The GroundingDINO CUDA extension in the input-tools image targets compute capability 8.0+; on
 older GPUs it reports "no kernel image is available" and silently returns no detections.
 
-Metric meshes come from `pipeline/stages/object_mesh.sh` (see `docs/JOINT_BASELINE.md`). Then:
+Metric meshes come from `pipeline/stages/object_mesh.sh` (see `docs/PIPELINE.md`). Then:
 
 ```bash
 python3 scripts/validate_object_setup.py
@@ -57,5 +56,5 @@ for e in $(seq 0 29); do bash pipeline/stages/track_object.sh "$e"; done
 ```
 
 MoGe-2 depth and monocular intrinsics are estimates. FoundationPose output remains in each
-camera's coordinate system; `pipeline/stages/align.sh` and `scripts/build_track1_episodes.py`
-map it into the shared human/object frame used by the submission.
+camera's coordinate system, which is also the submission's world frame (static camera);
+`scripts/build_track1_episodes_sam.py` maps it into SAM 3D Body's metric with the episode's MoGe/SAM depth scale.

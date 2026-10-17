@@ -1,9 +1,9 @@
 """SAM 3D Body on the selected actor of one or more episodes, raw outputs only (GPU; image with the SAM 3D Body library,
 v2d_cari4d.sif by default, see pipeline/stages/sam3d_body.sh).
 
-Per episode: full-resolution frames of the exo video; per-frame person box from the selected actor's ViTPose
-keypoints (outputs/vitpose, the exported WHAM actor fragments: the same person the reference pipeline uses);
-one static intrinsics estimate per episode (MoGe-2 at the reference frame, outputs/alignment). Each frame goes
+Per episode: full-resolution frames of the exo video; per-frame box of the actor's SAM 2 person mask
+(outputs/person, pipeline/stages/person.sh; the toolkit's mask-box prompt); one static intrinsics estimate per
+episode (median MoGe-2 intrinsics, outputs/camera). Each frame goes
 through SAM3DBodyEstimator.process_one_image with inference_type "full" (body + hand decoders). Every output
 field is saved unchanged (raw_<episode>.npz) before any refinement, plus projection overlays every N frames.
 Writes outputs/sam3d_body/<episode>/raw_<episode>.npz, summary.json and overlay/.
@@ -30,20 +30,16 @@ FIELDS = ("bbox", "focal_length", "pred_keypoints_3d", "pred_keypoints_2d", "pre
           "pred_joint_coords", "pred_global_rots", "mhr_model_params", "lhand_bbox", "rhand_bbox")
 
 
-def person_boxes(kps, W_img, H_img, min_conf=0.3):
-    """[T, 4] xyxy boxes around the confident ViTPose keypoints (+10 % width, +20 % head, +10 % feet);
-    frames without keypoints take the nearest valid frame's box."""
-    T = len(kps)
+def person_boxes(tag, T):
+    """[T, 4] xyxy boxes of the actor's SAM 2 person mask (outputs/person/<episode>/sam2_masks/0);
+    frames with an empty mask take the nearest valid frame's box."""
     boxes = np.full((T, 4), np.nan, np.float32)
     for f in range(T):
-        k = kps[f]
-        ok = np.isfinite(k[:, 0]) & (k[:, 2] >= min_conf)
-        if ok.sum() < 4:
+        m = cv2.imread(str(T1 / "outputs/person" / tag / "sam2_masks/0" / f"{f:06d}.png"), cv2.IMREAD_GRAYSCALE)
+        if m is None or not (m > 127).any():
             continue
-        x0, y0 = k[ok, 0].min(), k[ok, 1].min()
-        x1, y1 = k[ok, 0].max(), k[ok, 1].max()
-        w, h = x1 - x0, y1 - y0
-        boxes[f] = [max(0, x0 - 0.1 * w), max(0, y0 - 0.2 * h), min(W_img - 1, x1 + 0.1 * w), min(H_img - 1, y1 + 0.1 * h)]
+        ys, xs = np.nonzero(m > 127)
+        boxes[f] = [xs.min(), ys.min(), xs.max() + 1, ys.max() + 1]
     valid = np.flatnonzero(np.isfinite(boxes[:, 0]))
     filled = valid.size > 0
     for f in np.flatnonzero(~np.isfinite(boxes[:, 0])):
@@ -77,13 +73,12 @@ def main():
         tag = f"episode_{ep:06d}"
         out_dir = args.out / tag
         (out_dir / "overlay").mkdir(parents=True, exist_ok=True)
-        intr = json.loads((T1 / "outputs/alignment" / tag / "alignment.json").read_text())["intrinsics"]
+        intr = json.loads((T1 / "outputs/camera" / tag / "intrinsics.json").read_text())
         K = np.array([[intr["fx"], 0, intr["cx"]], [0, intr["fy"], intr["cy"]], [0, 0, 1]], np.float32)
         cap = cv2.VideoCapture(str(VIDEOS / f"{tag}.mp4"))
         T = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         Wd, Hd = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        kps = np.load(T1 / "outputs/vitpose" / f"{tag}.npz")["kps"].astype(np.float64)
-        boxes, n_valid = person_boxes(kps[:T], Wd, Hd)
+        boxes, n_valid = person_boxes(tag, T)
         cols = {k: [] for k in FIELDS}
         t0 = time.time()
         for f in range(T):
@@ -112,7 +107,7 @@ def main():
                 print(f"{tag} frame {f}/{T} ({(time.time() - t0) / (f + 1):.2f} s/frame)", flush=True)
         arrays = {k: np.stack(v).astype(np.float32) for k, v in cols.items() if v and v[0] is not None}
         np.savez_compressed(out_dir / f"raw_{tag}.npz", faces=faces, K=K, prompt_boxes=boxes, **arrays)
-        summary = {"frames": T, "frames_with_keypoint_box": int(n_valid), "seconds": round(time.time() - t0, 1),
+        summary = {"frames": T, "frames_with_mask_box": int(n_valid), "seconds": round(time.time() - t0, 1),
                    "fields": {k: list(v.shape) for k, v in arrays.items()}}
         (out_dir / "summary.json").write_text(json.dumps(summary, indent=2))
         print(tag, json.dumps(summary), flush=True)

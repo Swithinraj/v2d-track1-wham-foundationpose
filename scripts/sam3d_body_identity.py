@@ -1,13 +1,16 @@
-"""SAM 3D Body: shared identity and MoGe/SAM depth scale per episode (wham.sif: numpy, cv2, PIL).
+"""SAM 3D Body: shared identity and MoGe/SAM depth scale per episode (v2d_cari4d.sif: numpy, cv2, PIL).
 
-Identity: reliable frames = >= 12 confident (>= 0.5) ViTPose keypoints and a prompt box clear of the image border.
+Identity: reliable frames = >= 14 of SAM 3D Body's 17 body keypoints (COCO subset of its 2D keypoints) inside the
+actor's SAM 2 person mask (dilated 15 px) and a prompt box clear of the image border.
 The shared identity is the medoid frame's (scales[68], shape[45]) vector (per-dimension standardised over the
 reliable frames): one physically consistent body, not a per-dimension average of different bodies.
-Depth scale (no WHAM quantities reused): every third frame, median of MoGe-2 depth / SAM front-surface depth
+Depth scale: every third frame, median of MoGe-2 depth / SAM front-surface depth
 over the body pixels (4 px z-buffer cells), divided by MoGe's per-frame wobble on static background pixels
 (no body, no object), as the pipeline's depth-trend stage does. depth_scale = median over frames; the
 normalised series qn feeds an optional depth-trend correction later.
-Writes outputs/sam3d_body/<episode>/prepare.npz (identity, medoid frame, reliable mask, depth series) + prepare.json.
+Writes outputs/sam3d_body/<episode>/prepare.npz (identity, medoid frame, reliable mask, depth series) + prepare.json,
+and outputs/keypoints2d_sam/<episode>.npz: SAM 3D Body's raw per-frame 2D body keypoints in COCO-17 order
+(kps [T, 17, 3]: x, y, 1 inside the image else 0), the held-out 2D check of the human refinement.
 Usage: sam3d_body_identity.py --episodes E [...] [--raw_dir DIR --run_dir DIR]
 """
 import argparse
@@ -20,6 +23,7 @@ from PIL import Image
 
 T1 = Path("/track1")
 STRIDE, CELL = 3, 4
+COCO_FROM_MHR70 = [0, 1, 2, 3, 4, 5, 6, 7, 8, 62, 41, 9, 10, 11, 12, 13, 14]
 
 
 def depth_m(path):
@@ -43,11 +47,23 @@ def main():
         K = z["K"].astype(np.float64)
         P = z["mhr_model_params"].astype(np.float64)
         ident = np.concatenate([P[:, 136:204], z["shape_params"].astype(np.float64)], 1)       # [T, 113]
-        kps = np.load(T1 / "outputs/vitpose" / f"{tag}.npz")["kps"]
         boxes = z["prompt_boxes"]
         T = len(P)
         H, W = 1152, 1536
-        conf_ok = (np.nan_to_num(kps[:T, :, 2]) >= 0.5).sum(1) >= 12
+        k2 = z["pred_keypoints_2d"][:, COCO_FROM_MHR70, :2].astype(np.float64)
+        inside_img = (k2[..., 0] >= 0) & (k2[..., 0] < W) & (k2[..., 1] >= 0) & (k2[..., 1] < H)
+        kp_out = T1 / "outputs/keypoints2d_sam"
+        kp_out.mkdir(parents=True, exist_ok=True)
+        np.savez(kp_out / f"{tag}.npz", kps=np.concatenate([k2, inside_img[..., None]], -1).astype(np.float32))
+        conf_ok = np.zeros(T, bool)
+        for f in range(T):
+            m = cv2.imread(str(T1 / "outputs/person" / tag / "sam2_masks/0" / f"{f:06d}.png"), cv2.IMREAD_GRAYSCALE)
+            if m is None:
+                continue
+            m = cv2.dilate((m > 127).astype(np.uint8), np.ones((31, 31), np.uint8)) > 0
+            xy = np.round(k2[f]).astype(int)
+            ok = inside_img[f]
+            conf_ok[f] = int(m[xy[ok, 1], xy[ok, 0]].sum()) >= 14
         clear = (boxes[:, 0] > 4) & (boxes[:, 1] > 4) & (boxes[:, 2] < W - 5) & (boxes[:, 3] < H - 5)
         reliable = conf_ok & clear
         if reliable.sum() < 10:

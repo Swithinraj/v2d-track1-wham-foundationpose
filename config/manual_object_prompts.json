@@ -14,6 +14,24 @@
     "box": [460, 575, 805, 925],
     "note": "Visual audit: box around the handled white desk; GroundingDINO selected a background table."
   },
+  "12": {
+    "frame_index": 0,
+    "points": [[650, 722], [612, 722], [592, 719], [575, 719], [644, 748], [577, 734]],
+    "point_labels": [1, 1, 1, 1, 0, 0],
+    "note": "Visual audit: pan at rest, handle pointing left; positives on the bowl and along the handle, negatives on the table top. GroundingDINO's box covers the bowl only, so SAM 2 dropped the handle."
+  },
+  "13": {
+    "frame_index": 0,
+    "points": [[687, 665], [708, 655], [717, 650], [726, 646], [680, 684], [721, 620]],
+    "point_labels": [1, 1, 1, 1, 0, 0],
+    "note": "Visual audit: pan at rest, handle pointing right-up across a tripod leg; positives on bowl and handle, negatives on the table and the tripod leg. GroundingDINO's box covers the bowl only."
+  },
+  "14": {
+    "frame_index": 0,
+    "points": [[694, 711], [727, 705], [747, 700], [767, 696], [747, 717], [751, 686]],
+    "point_labels": [1, 1, 1, 1, 0, 0],
+    "note": "Visual audit: pan at rest, handle pointing right; positives on bowl and handle, negatives on the table top and the floor behind it. GroundingDINO's box covers the bowl only."
+  },
   "17": {
     "frame_index": 120,
     "box": [675, 510, 790, 625],

@@ -2,20 +2,20 @@
 """Symmetry-aware tracking for rotationally symmetric objects (the hula hoop): particle filter + global
 sequence optimisation, replacing the FoundationPose track while the object is handled.
 
-Runs in wham.sif (numpy, scipy, cv2), CPU only. A torus's pose is defined only up to spin about its axis
+Runs in v2d_cari4d.sif (numpy, scipy, cv2), CPU only. A torus's pose is defined only up to spin about its axis
 and an axis flip, so the state is the ring centre c (3) and the axis LINE n (2 DoF, sign-free):
   1. Each SAM 2 mask is fitted with an ellipse; with the ring radius (inputs/object_meshes/
      <object>.symmetric.json) and MoGe-2 intrinsics this gives the distance and two tilt hypotheses.
   2. Particle filter over (c, velocity, n), forward and backward from the prompt frame. Weight =
      symmetric 2D chamfer between the projected ring centreline and the mask (trimmed for occlusion)
-     + a hand-contact prior from the WHAM/MHR hand points next to the hoop; 20% of particles are
+     + a hand-contact prior from the SAM 3D Body (MHR) hand points next to the hoop; 20% of particles are
      re-proposed from the mask fit every frame; the axis estimate is a sign-free (eigenvector) mean.
   3. Sparse least squares over the whole sequence: the chamfer and hand terms (Charbonnier), second-
      difference smoothness on c and n, 40x smoothness plus a zero-velocity term on frames where the
      mask shows the object at rest, and an anchor to the FoundationPose smoothed track on those
      resting frames (where FoundationPose is reliable). Rotations are rebuilt with minimal twist.
 Measured on episodes 0-2 against the FoundationPose track: silhouette IoU on scored frames 0.457 ->
-0.524, 0.136 -> 0.490, 0.407 -> 0.599, resting acceleration unchanged (docs/JOINT_BASELINE.md).
+0.524, 0.136 -> 0.490, 0.407 -> 0.599, resting acceleration unchanged.
 
 Writes outputs/object/episode_X/foundationpose/symmetric/*.json (object-to-camera Transform3d, MoGe
 metres, for the <object>.symmetric.glb mesh) and symmetric_report.json.
@@ -124,10 +124,11 @@ def ellipse_hypotheses(pts, K):
 
 
 def load_hands(episode):
-    """Hand centroids in the MoGe camera frame [T, 2, 3] (inverse of build_track1_episodes' mapping)."""
+    """Hand centroids in the MoGe camera frame [T, 2, 3] (inverse of the assembly's camera mapping)."""
     tag = f"episode_{episode:06d}"
-    hands = np.load(ROOT / "outputs/hands" / f"{tag}.npz")["hands"].astype(np.float64)   # human (WHAM) frame
-    a = json.loads((ROOT / "outputs/alignment" / tag / "alignment.json").read_text())
+    hands = np.load(ROOT / "outputs/hands" / f"{tag}.npz")["hands"].astype(np.float64)   # human frame (sam3d_body_hands.py)
+    align_root = Path(os.environ.get("TRACK1_ALIGNMENT_DIR") or ROOT / "outputs/alignment_sam")   # the hands' frame
+    a = json.loads((align_root / tag / "alignment.json").read_text())
     R, t, s = np.asarray(a["R_cw"]), np.asarray(a["t_cw"]), float(a["depth_scale"])
     cam = s * (hands @ R.T + t)
     return np.stack([cam[:, :256].mean(1), cam[:, 256:].mean(1)], 1)

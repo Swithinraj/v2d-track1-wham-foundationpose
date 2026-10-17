@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Pick the TRELLIS mesh candidate that FoundationPose fits best in every camera, fix its metric
+"""Pick the generated mesh candidate that FoundationPose fits best in every camera, fix its metric
 scale, and install it for tracking.
 
-Runs inside containers/v2d_cari4d.sif after scripts/trellis_object_mesh.py. Every object is
+Runs inside containers/v2d_cari4d.sif after scripts/sam3d_object_mesh.py (outputs/object_meshes/<object>/sam3d/; the
+candidates of every --generators folder present are pooled into one selection). Every object is
 seen by three different exo cameras (one episode each), so a candidate with the wrong shape
 (a bench for a stool, a dish for a bowl, an object embedded in a plate) cannot match all three
 silhouettes. For each candidate and each episode's selection frame, a coarse-to-fine scale
@@ -76,17 +77,30 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--object", required=True)
     parser.add_argument("--include_plate_suspects", action="store_true")
+    parser.add_argument("--reference", type=Path, default=None,
+                        help="an existing metric mesh (e.g. the installed one), scored the same way for comparison only")
+    parser.add_argument("--generators", nargs="+", default=["sam3d"],
+                        help="candidate folders outputs/object_meshes/<object>/<generator>/ to pool (missing ones skipped)")
     args = parser.parse_args()
 
     out = ROOT / "outputs" / "object_meshes" / args.object
-    provenance = json.loads((out / "provenance.json").read_text())
-    frames = {int(d.name.split("_")[1]): load_frame(d) for d in sorted((out / "scale_frames").glob("episode_*"))}
-    usable = [c for c in provenance["candidates"] if c["status"] == "ok"]
-    clean = [c for c in usable if not c["plate_suspect"]]
-    pool = usable if args.include_plate_suspects or len(clean) < 2 else clean
+    sources = {g: json.loads((out / g / "provenance.json").read_text())
+               for g in args.generators if (out / g / "provenance.json").is_file()}
+    if not sources:
+        raise SystemExit(f"{args.object}: no candidates from any of {args.generators}")
+    # Every generator picks the same best view per episode (same view scoring), so one set of selection frames
+    # serves all of them: the first generator's.
+    frames_dir = out / next(iter(sources)) / "scale_frames"
+    frames = {int(d.name.split("_")[1]): load_frame(d) for d in sorted(frames_dir.glob("episode_*"))}
+    pool = []
+    for generator, provenance in sources.items():
+        usable = [{**c, "generator": generator, "key": f"{generator}/{c['id']}"} for c in provenance["candidates"]
+                  if c["status"] == "ok"]
+        clean = [c for c in usable if not c["plate_suspect"]]
+        pool += usable if args.include_plate_suspects or len(clean) < 2 else clean
 
     for candidate in pool:
-        mesh = Mesh.load(str(out / "candidates" / candidate["id"] / "coarse_metric.glb"))
+        mesh = Mesh.load(str(out / candidate["generator"] / "candidates" / candidate["id"] / "coarse_metric.glb"))
         tracker = FoundationPoseTracker(mesh, str(WEIGHTS), backend=BACKEND)
         fits = {e: scale_search(tracker, frame, n_samples=5, n_levels=2) for e, frame in frames.items()}
         candidate["selection"] = {
@@ -95,21 +109,34 @@ def main() -> None:
             "per_episode": {str(e): {k: f[k] for k in ("scale", "score", "iou", "depth_fit", "at_search_boundary")}
                             for e, f in fits.items()},
         }
-        print(f"{args.object} {candidate['id']} episodes={candidate['condition_episodes']} seed={candidate['seed']} "
+        print(f"{args.object} {candidate['key']} episodes={candidate['condition_episodes']} seed={candidate['seed']} "
               f"mean_score={candidate['selection']['mean_score']:.3f} mean_iou={candidate['selection']['mean_iou']:.3f}",
               flush=True)
         del tracker
 
+    reference = None
+    if args.reference is not None and args.reference.is_file():
+        # Already metric: the same scale search, centred on its own size (the comparison the new winner must beat).
+        tracker = FoundationPoseTracker(Mesh.load(str(args.reference)), str(WEIGHTS), backend=BACKEND)
+        fits = {e: scale_search(tracker, frame, n_samples=7, n_levels=3) for e, frame in frames.items()}
+        reference = {"mesh": str(args.reference), "mean_score": float(np.mean([f["score"] for f in fits.values()])),
+                     "mean_iou": float(np.mean([f["iou"] for f in fits.values()])),
+                     "per_episode": {str(e): {k: f[k] for k in ("scale", "score", "iou", "depth_fit", "at_search_boundary")}
+                                     for e, f in fits.items()}}
+        print(f"{args.object} reference {args.reference.name} mean_score={reference['mean_score']:.3f} "
+              f"mean_iou={reference['mean_iou']:.3f}", flush=True)
+        del tracker
+
     winner = max(pool, key=lambda c: c["selection"]["mean_score"])
-    mesh = Mesh.load(str(out / "candidates" / winner["id"] / "coarse_metric.glb"))
-    tracker = FoundationPoseTracker(mesh, str(WEIGHTS), backend=BACKEND)
+    winner_glb = out / winner["generator"] / "candidates" / winner["id"] / "coarse_metric.glb"
+    tracker = FoundationPoseTracker(Mesh.load(str(winner_glb)), str(WEIGHTS), backend=BACKEND)
     refined = {e: scale_search(tracker, frame, n_samples=7, n_levels=3) for e, frame in frames.items()}
     for e, fit in refined.items():
-        (out / "scale_frames" / f"episode_{e:06d}" / "selected_fit.json").write_text(json.dumps(fit, indent=2))
+        (frames_dir / f"episode_{e:06d}" / "selected_fit.json").write_text(json.dumps(fit, indent=2))
     scales = [fit["scale"] for fit in refined.values()]
     relative = float(np.median(scales))
 
-    final = trimesh.load(out / "candidates" / winner["id"] / "coarse_metric.glb", force="mesh")
+    final = trimesh.load(winner_glb, force="mesh")
     final.apply_scale(relative)
     target = ROOT / "inputs" / "object_meshes" / f"{args.object}.glb"
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -117,23 +144,35 @@ def main() -> None:
 
     spread = float(max(scales) / min(scales))
     mean_iou = float(np.mean([fit["iou"] for fit in refined.values()]))
+    provenance = {
+        "schema": "v2d.track1.generated_object_mesh.v3",
+        "object": args.object,
+        "ground_truth": False,
+        "generators": {g: p["generator"] for g, p in sources.items()},
+        "winner_generation": sources[winner["generator"]],
+        "candidates": pool,
+    }
     provenance["selection"] = {
         "method": "max mean over cameras of IoU + 0.5 * exp(-median|depth ratio - 1|) after FoundationPose "
                   "registration at the best scale (coarse-to-fine log grid in "
-                  f"[{SEARCH_LO}, {SEARCH_HI}] x the MoGe-2 depth-extent scale)",
-        "pool": [c["id"] for c in pool],
-        "winner": winner["id"],
+                  f"[{SEARCH_LO}, {SEARCH_HI}] x the candidate's coarse metric scale), candidates of all generators pooled",
+        "pool": [c["key"] for c in pool],
+        "winner": winner["key"],
+        "best_per_generator": {g: max((c for c in pool if c["generator"] == g), key=lambda c: c["selection"]["mean_score"])["key"]
+                               for g in sources if any(c["generator"] == g for c in pool)},
         "refined_per_episode": {str(e): {k: f[k] for k in ("scale", "score", "iou", "depth_fit", "at_search_boundary")}
                                 for e, f in refined.items()},
         "median_relative_scale": relative,
         "max_over_min_scale_spread": spread,
+        "refined_mean_score": float(np.mean([f["score"] for f in refined.values()])),
+        "reference": reference,
     }
     provenance["final_extents_m"] = [float(x) for x in final.extents]
     provenance["requires_visual_review"] = bool(mean_iou < 0.5 or spread > 1.5
                                                 or any(f["at_search_boundary"] for f in refined.values()))
     (out / "provenance.json").write_text(json.dumps(provenance, indent=2))
     target.with_suffix(".provenance.json").write_text(json.dumps(provenance, indent=2))
-    print(f"{args.object}: winner {winner['id']} (episodes {winner['condition_episodes']}, seed {winner['seed']}), "
+    print(f"{args.object}: winner {winner['key']} (episodes {winner['condition_episodes']}, seed {winner['seed']}), "
           f"refined IoU {mean_iou:.3f}, scales {[round(s, 3) for s in scales]}, extents {np.round(final.extents, 3).tolist()} m")
     if provenance["requires_visual_review"]:
         print(f"REVIEW: {args.object} has low silhouette agreement, inconsistent scales, or a boundary scale")

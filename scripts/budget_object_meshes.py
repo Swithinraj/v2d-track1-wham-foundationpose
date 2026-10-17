@@ -4,7 +4,7 @@ pipeline/stages/hand_fix.sh).
 The scorer simplifies every object mesh to the sample submission's face/vertex budget (v2dlb.mesh_budget) and
 measures PEN against that mesh; containers without trimesh/fast_simplification read the result from here.
 Writes <out>/<episode>_budget.npz (vertices, faces; padding faces removed) and <out>/scored_frames.json.
-Usage: budget_object_meshes.py --episodes DIR --out DIR
+Usage: budget_object_meshes.py --episodes DIR --out DIR [--only E ...]
 """
 import argparse
 import json
@@ -24,11 +24,14 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--episodes", type=Path, required=True)
     ap.add_argument("--out", type=Path, required=True)
+    ap.add_argument("--only", type=int, nargs="*", default=None, help="episode subset (default all)")
     args = ap.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
     frames, budget = rp.scored_frames_and_budget()
     for path in sorted(args.episodes.glob("episode_??????.npz")):
         tag = path.stem
+        if args.only is not None and int(tag.split("_")[1]) not in args.only:
+            continue
         v, f = budget_mesh(rp.find_mesh(path.parent / f"{tag}_object"), *budget)
         keep = np.linalg.norm(np.cross(v[f[:, 1]] - v[f[:, 0]], v[f[:, 2]] - v[f[:, 0]]), axis=1) > 0
         np.savez(args.out / f"{tag}_budget.npz", vertices=v, faces=f[keep])

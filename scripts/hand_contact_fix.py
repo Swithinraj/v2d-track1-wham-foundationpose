@@ -62,7 +62,12 @@ def main():
     ap.add_argument("--episodes", type=int, nargs="*", default=list(range(30)))
     ap.add_argument("--scored_only", action="store_true")
     args = ap.parse_args()
-    shutil.copytree(args.input, args.out, dirs_exist_ok=True)
+    # copy only this run's episodes (+ shared top-level files), so runs on disjoint episode sets can share --out
+    args.out.mkdir(parents=True, exist_ok=True)
+    tags = {f"episode_{ep:06d}" for ep in args.episodes}
+    for src in args.input.iterdir():
+        if src.is_file() and (src.name[:14] in tags if src.name.startswith("episode_") else not (args.out / src.name).exists()):
+            shutil.copy2(src, args.out / src.name)
     scored = json.loads((args.meshes / "scored_frames.json").read_text())
     mhr = MHR(str(MODEL), "cuda", chunk=64, precision="float64")
     sets = hand_vertex_sets()

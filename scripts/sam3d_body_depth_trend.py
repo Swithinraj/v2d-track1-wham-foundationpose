@@ -1,4 +1,4 @@
-"""SAM 3D Body human: the WHAM pipeline's MoGe depth-trend correction (H2t) in the camera world (wham.sif).
+"""SAM 3D Body human: MoGe-2 depth-trend correction (H2t) in the camera world (v2d_cari4d.sif).
 
 Same rule as TRACK1 scripts/depth_trend_correction.py apply: the background-normalised MoGe/SAM depth ratio qn
 (sam3d_body_identity.py, every third frame) is interpolated to every frame, median-filtered (15 frames) and Gaussian-

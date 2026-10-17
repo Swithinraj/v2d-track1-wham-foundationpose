@@ -2,9 +2,8 @@
 """Human motion refit: temporally smoothed MHR mesh (+ fused wrists, object-anchored hands) -> MHR pose
 (mhr_converter.sif, GPU; human refinement stage).
 
-WHAM's own wrists/elbows are the jerkiest scored joints and the WHAM->MHR conversion adds nothing to that,
-so the fix is at motion level. MHR Euler parameters wrap by 2*pi and pass near gimbal lock, so instead of
-smoothing parameters:
+Per-frame human estimates leave wrists/elbows as the jerkiest scored joints, so the fix is at motion level.
+MHR Euler parameters wrap by 2*pi and pass near gimbal lock, so instead of smoothing parameters:
   1. vertex targets X = argmin |X - V|^2 + LAM |D2 X|^2 per vertex coordinate over time (V = input mesh);
   2. --fusion DIR: every frame's hand-vertex targets are shifted by the wrist offset of wrist_fusion.py;
   3. --anchors DIR: inside stable grasp windows (hand_anchors.py) the hand-vertex targets become the hand

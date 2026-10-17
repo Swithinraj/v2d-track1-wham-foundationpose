@@ -1,17 +1,16 @@
 #!/usr/bin/env python3
-"""Assemble Track 1 episodes with the SAM 3D Body human in the static camera's frame (wham.sif: numpy + cv2).
+"""Assemble Track 1 episodes with the SAM 3D Body human in the static camera's frame (v2d_cari4d.sif: numpy + cv2).
 
-World frame = the static camera, in SAM 3D Body's metric (no WHAM alignment is used).
+World frame = the static camera, in SAM 3D Body's metric.
   human   outputs/sam3d_body/<episode>/refit.npz: pose refitted with one shared identity (scales 68 + shape 45)
   object  the FoundationPose camera-frame track (smoothed; the symmetry-aware track for symmetric objects) mapped
           with the episode's MoGe/SAM depth scale s (sam3d_body_identity.py): object_rotation = R_co,
-          object_translation = t_co / s, object_scale = s_co / s, i.e. build_track1_episodes.py's mapping with
-          R_cw = I, t_cw = 0, depth_scale = s. Symmetric objects (hula hoop) get the centre smoothing of
+          object_translation = t_co / s, object_scale = s_co / s (a camera alignment with R_cw = I, t_cw = 0,
+          depth_scale = s). Symmetric objects (hula hoop) get the centre smoothing of
           smooth_symmetric_objects.py (lambda 100, weight 40 on frames where the mask rests).
-  mesh    inputs/object_meshes/<object>.glb (<object>.symmetric.glb with the symmetric track), as
-          build_track1_episodes.py chooses.
-Also writes outputs/alignment_sam/<episode>/alignment.json (R_cw = I, t_cw = 0, depth_scale = s, the episode's
-intrinsics) so the human refinement stage can run in this frame (TRACK1_ALIGNMENT_DIR).
+  mesh    inputs/object_meshes/<object>.glb (<object>.symmetric.glb with the symmetric track).
+Also (re)writes outputs/alignment_sam/<episode>/alignment.json (R_cw = I, t_cw = 0, depth_scale = s, the episode's
+intrinsics, outputs/camera; first written by sam3d_body_hands.py) for the human refinement stage.
 Usage: build_track1_episodes_sam.py --out DIR [--episodes ...]
 """
 
@@ -85,7 +84,7 @@ def main() -> None:
                  object_rotation=R.astype(np.float32), object_translation=trans.astype(np.float32),
                  object_scale=np.float32(sc.mean() / s))
         shutil.copy(mesh, args.out / f"{tag}_object.glb")
-        intrinsics = json.loads((ROOT / "outputs" / "alignment" / tag / "alignment.json").read_text())["intrinsics"]
+        intrinsics = json.loads((ROOT / "outputs" / "camera" / tag / "intrinsics.json").read_text())
         align = ROOT / "outputs" / "alignment_sam" / tag
         align.mkdir(parents=True, exist_ok=True)
         (align / "alignment.json").write_text(json.dumps({"R_cw": np.eye(3).tolist(), "t_cw": [0.0, 0.0, 0.0], "depth_scale": s,
