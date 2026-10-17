@@ -107,6 +107,12 @@ mapped with the MoGe/SAM depth scale; no WHAM alignment), applies the depth-tren
 Kaggle probe of this configuration on 2026-10-16 (cbb430a reference in brackets): CD-O 25.22105 (29.36947),
 PEN 0.00575 (0.00822), ACC-O 0.07770 without the push (0.07700).
 
+**Hand-side contact fix (optional, `HAND_FIX=1`).** `pipeline/stages/hand_fix.sh` refits only the pose parameters
+that move the hands but none of the 22 joints scored by ACC-H (fingers, wrist rotations) and pushes hand vertices out
+of the scorer-budgeted object mesh (two passes). Objects and scored joints are unchanged, so ACC-H, ACC-O and CD-O
+cannot move; on the SAM 3D Body build the self-measured penetration drops from 0.0154 to 0.0045 cm.
+`HAND_FIX_EPISODES` splits the work across GPUs.
+
 ## Layout
 
 ```text

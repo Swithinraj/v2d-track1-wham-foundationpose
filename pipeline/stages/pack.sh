@@ -8,6 +8,8 @@
 #   HUMAN_REFINE=1 (default, needs a GPU) -> human motion smoothing, object-anchored hands, MediaPipe/RTS wrist
 #                                           fusion and lateral root RTS (stages/human_refine.sh, REFINE_LAM,
 #                                           default 100) -> <previous dir>_refine/
+#   HAND_FIX=1 (optional, needs a GPU)   -> hand-side contact fix: fingers/wrist rotations only (stages/hand_fix.sh)
+#                                           -> <previous dir>_handfix/
 #   RESOLVE_PEN=1 (optional)             -> hand points + penetration push -> <previous dir>_pen/
 #   official eval_reconstruction.py      -> submissions/*.parquet
 # HUMAN=sam3d: the SAM 3D Body human (pipeline/stages/sam3d_body.sh) in the static camera's frame instead of WHAM:
@@ -69,6 +71,10 @@ if [[ "${HUMAN_REFINE:-1}" == 1 ]]; then
     "${EPISODES_NAME}_refine"
   EPISODES_NAME="${EPISODES_NAME}_refine"
 fi
+fi
+if [[ "${HAND_FIX:-0}" == 1 ]]; then
+  bash "${TRACK1_ROOT}/pipeline/stages/hand_fix.sh" "${EPISODES_NAME}" "${EPISODES_NAME}_handfix"
+  EPISODES_NAME="${EPISODES_NAME}_handfix"
 fi
 if [[ "${RESOLVE_PEN:-0}" == 1 ]]; then
   in_container mhr_converter.sif python /track1/scripts/extract_mhr_hands.py \
