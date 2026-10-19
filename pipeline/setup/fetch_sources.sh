@@ -18,6 +18,7 @@ clone_pinned() {  # clone_pinned URL COMMIT DIR
 mkdir -p "${TRACK1_ROOT}/third_party" "${TRACK1_ROOT}/official"
 clone_pinned "${V2D_GIT_URL}" "${V2D_GIT_COMMIT}" video_to_data
 clone_pinned "${MHR_GIT_URL}" "${MHR_GIT_COMMIT}" MHR
+clone_pinned "${COTRACKER_GIT_URL}" "${COTRACKER_GIT_COMMIT}" co-tracker   # roller handle masks (CC BY-NC 4.0)
 
 KIT_ZIP="${TRACK1_ROOT}/third_party/video_to_data/docs/v2d_challenge/assets/v2d_submission_kit.zip"
 if [[ ! -f "${TRACK1_ROOT}/official/v2d_submission_kit/KIT_MANIFEST.json" ]]; then

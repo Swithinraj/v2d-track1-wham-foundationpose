@@ -21,6 +21,11 @@ fi
 unzip -q -o "${W}/mhr/assets.zip" -d "${W}/mhr"
 echo "${MHR_MODEL_SHA256}  ${W}/mhr/assets/mhr_model.pt" | sha256sum -c -
 
+# --- CoTracker3 (roller handle masks; CC BY-NC 4.0) ---
+mkdir -p "${W}/cotracker3"
+[[ -s "${W}/cotracker3/scaled_offline.pth" ]] || curl -fsSL "${COTRACKER_WEIGHTS_URL}" -o "${W}/cotracker3/scaled_offline.pth"
+echo "${COTRACKER_WEIGHTS_SHA256}  ${W}/cotracker3/scaled_offline.pth" | sha256sum -c -
+
 # --- Object branch (the toolkit's own downloaders) ---
 HF=(HF_HOME=/track1/.cache/huggingface_object XDG_CACHE_HOME=/tmp/xdg HF_HUB_DISABLE_XET=1)
 in_container v2d_sam2.sif "${HF[@]}" python -m v2d.sam2.lib.download_weights --output_dir /track1/weights/sam2

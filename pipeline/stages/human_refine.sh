@@ -7,6 +7,9 @@
 #   5. lateral root drift RTS from MediaPipe, gated by the actor's SAM 2 mask   person_mask_sdf.py, root_lateral.py
 # Usage: human_refine.sh INPUT CONTACT PRE OUTPUT   (episode directory names under submissions/)
 #   HUMAN_REFINE_WORK: work directory under outputs/ (default human_refine); REFINE_LAM (default 100).
+#   HUMAN_KP2D_DIR: 2D body landmarks in MediaPipe's layout (default outputs/mediapipe), e.g. a stronger tracked detector written in that layout.
+#   HUMAN_VISIBILITY=1: occlusion-aware smoothing (body_visibility.py weights per limb part and frame).
+#   HUMAN_FEET=<floor planes json under /track1> (+ HUMAN_KAPPA=<kappa_gravity_report.json under /track1>): planted feet.
 #   INPUT   assembled episodes to refine (after depth trend and hoop smoothing)
 #   CONTACT episodes whose object track defines grasp contact (after the depth trend, before smoothing)
 #   PRE     episodes before the depth trend (the contact hands are computed from them and moved by it)
@@ -31,16 +34,23 @@ py hand_anchors.py --windows "${W}/grasp_windows.json" --contact "${S}/${CONTACT
   --hands "${W}/hands_contact" --out "${W}/anchors"
 mhr human_refit.py --input "/track1/submissions/${IN}" --out "/track1/submissions/${IN}_s10" --lam 10
 mhr mhr_bodies.py --episodes_dir "/track1/submissions/${IN}_s10" --out ${C}/bodies_s10
+extra=()
+if [[ "${HUMAN_VISIBILITY:-0}" == 1 ]]; then
+  in_container v2d_cari4d.sif python /track1/scripts/body_visibility.py --bodies "${C}/bodies_s10" \
+    --episodes "/track1/submissions/${IN}" --out "${C}/visibility"
+  extra+=(--visibility "${C}/visibility")
+fi
+[[ -n "${HUMAN_FEET:-}" ]] && extra+=(--feet "${HUMAN_FEET}" ${HUMAN_KAPPA:+--kappa "${HUMAN_KAPPA}"})
 py wrist_fusion.py --bodies "${W}/bodies_s10" --episodes "${S}/${IN}" --anchors "${W}/anchors" \
-  --mediapipe "${TRACK1_ROOT}/outputs/mediapipe" --out "${W}/fusion"
+  --mediapipe "${HUMAN_KP2D_DIR:-${TRACK1_ROOT}/outputs/mediapipe}" --out "${W}/fusion"
 mhr human_refit.py --input "/track1/submissions/${IN}" --out "/track1/submissions/${IN}_fit" --lam "${LAM}" \
-  --fusion ${C}/fusion --anchors ${C}/anchors
-mhr human_refit.py --input "/track1/submissions/${IN}_fit" --out "/track1/submissions/${IN}_fit2" --lam "${LAM}"
+  --fusion ${C}/fusion --anchors ${C}/anchors ${extra[@]+"${extra[@]}"}
+mhr human_refit.py --input "/track1/submissions/${IN}_fit" --out "/track1/submissions/${IN}_fit2" --lam "${LAM}" ${extra[@]+"${extra[@]}"}
 mhr mhr_bodies.py --episodes_dir "/track1/submissions/${IN}" --out ${C}/bodies_base
 if ((${#missing_sdf[@]})); then
   in_container v2d_cari4d.sif python /track1/scripts/person_mask_sdf.py --episodes "${missing_sdf[@]}"
 fi
-py root_lateral.py --bodies "${W}/bodies_base" --mediapipe "${TRACK1_ROOT}/outputs/mediapipe" \
+py root_lateral.py --bodies "${W}/bodies_base" --mediapipe "${HUMAN_KP2D_DIR:-${TRACK1_ROOT}/outputs/mediapipe}" \
   --masks "${TRACK1_ROOT}/outputs/person" --base "${S}/${IN}" --refined "${S}/${IN}_fit2" --out "${S}/${OUT}"
 require_file "${S}/${OUT}/root_lateral_report.json"
 echo "PASS: human refinement ${IN} -> ${OUT}"
