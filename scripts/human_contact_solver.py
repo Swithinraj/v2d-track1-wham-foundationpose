@@ -192,6 +192,9 @@ def episode(ep, args, body, hsets):
         uvb0 = proj(J0[fr][:, [j for j, _ in PAIRS]]); rel_b = body_w * ((uvb0 - body_t).norm(dim=-1) < 10.0).float()
         uvh0 = [proj(J0[fr][:, jmaps[k]]) for k in range(2)]
         rel_h = [hand_w[:, k, None] * ((uvh0[k] - hand_t[:, k]).norm(dim=-1) < 12.0).float() for k in range(2)]
+    if args.free_fingers_in_grasp:                                 # fingers wrapped around the object are occluded:
+        for k in range(2):                                          # in stable grasps contact + rigidity decide them
+            rel_h[k] = rel_h[k] * torch.tensor(states[:, k] != 2, dtype=torch.float32, device="cuda")[:, None]
     cap_j = torch.as_tensor([42, 78, 40, 76], device="cuda")
     pj = torch.as_tensor([j for j, _ in PAIRS], device="cuda")
     sc = torch.as_tensor(SCORED_J, device="cuda")
@@ -294,12 +297,14 @@ def main():
     ap.add_argument("--sigma_arm", type=float, default=6.0); ap.add_argument("--sigma_hand", type=float, default=2.0)
     ap.add_argument("--no_arm", action="store_true")
     ap.add_argument("--nsub", type=int, default=NSUB)
+    ap.add_argument("--free_fingers_in_grasp", action="store_true",
+                    help="no image preservation of finger landmarks in stable-grasp windows (wrist and elbow stay held)")
     ap.add_argument("--w_img", type=float, default=0.0); ap.add_argument("--sigma_img", type=float, default=2.0)
     ap.add_argument("--w_cap", type=float, default=0.0); ap.add_argument("--depth_cap", type=float, default=0.05)
     args = ap.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
-    for f in args.objects.iterdir():                              # objects (meshes, shared files) from --objects
-        if f.is_file() and not f.name.endswith(".npz"):
+    for f in args.objects.glob("episode_??????_object*"):         # object meshes from --objects (no stale reports)
+        if f.is_file():
             shutil.copy2(f, args.out / f.name)
     body = Body(str(T1 / "weights/mhr/assets/mhr_model.pt")); hsets = hand_vertex_sets()
     report = {}

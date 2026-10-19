@@ -60,3 +60,26 @@ Validation of the submitted file is done on the final MHR after all processing:
 - MediaPipe and ViTPose 2D;
 - jitter;
 - displacement of the scored joints and the first scored frame.
+
+## Determinism
+
+The solve is not bit-reproducible on GPU. Atomic additions in the MHR skinning backward pass let weakly
+constrained finger parameters land differently between runs. Episode metrics stay within noise: two full runs gave
+self-PEN 0.00060 and 0.00059, contact gap 18.0 and 18.1 mm, and identical held-out 2D. The submitted parquet is the
+one produced by the recorded run (see its provenance JSON).
+
+## Version IPfG30
+
+Same as IPf30, with `CONTACT_ARGS` adding `--free_fingers_in_grasp`.
+
+In stable-grasp windows the finger landmarks are not held to the image: fingers wrapped around an object are
+occluded, so contact and rigidity decide them. Wrist and elbow stay held.
+
+On all 30 episodes, two runs each:
+
+| | IPf30 | IPfG30 |
+|---|---|---|
+| self-PEN | 0.00060 / 0.00059 | 0.00054 / 0.00054 |
+| contact gap | 18.0 / 18.1 mm | 18.0 / 17.9 mm |
+| stable-grasp drift | 2.6 mm/frame | 2.3 mm/frame |
+| held-out ViTPose | 5.374 px | 5.380 px |
