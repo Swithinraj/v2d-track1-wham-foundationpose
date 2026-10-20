@@ -147,3 +147,27 @@ hands and a smooth whole-body depth shift together, against the same current sce
 
 Objects and the first scored frame are unchanged, so CD-O and ACC-O equal Afr2b's. Its CD-H tests whether the
 human's depth, rather than the object's, should move during grasps.
+
+## Version AFwO (held objects' depth from the hands, then the hands again)
+
+Kaggle JD showed that during grasps the human's depth is the more accurate one. The hand-object depth gaps are
+therefore object errors. Starting from AFw:
+
+    MAX_DACC=0.003 pipeline/stages/held_object_depth.sh episodes_cand_AFw episodes_odc_gate
+    CONTACT_ARGS="<AFw settings>" pipeline/stages/contact_solve.sh episodes_cand_Afr2b episodes_odc_gate episodes_cand_AFwO
+
+**First stage.** Inside grasp intervals, the object moves smoothly along the camera ray until the hands' contact
+patches sit on its surface. An episode's move is kept only if:
+- the object's silhouette IoU does not drop, and
+- the added object acceleration stays at or below 0.003 cm/frame².
+
+**Second stage.** The hands are solved again against the moved objects. The first scored frame stays frozen.
+
+Local result:
+
+| Measure | AFwO | AFw |
+|---|---|---|
+| episodes moved | 10 | — |
+| self-PEN | 0.00043 | 0.00038 |
+| object acceleration | +0.9% | — |
+| human, alignment | unchanged | — |
