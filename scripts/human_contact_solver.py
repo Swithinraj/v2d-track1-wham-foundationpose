@@ -113,7 +113,7 @@ def episode(ep, args, body, hsets):
         fr = torch.arange(T, device="cuda")
         d0 = [signed(V0, h) for h in hsub]                        # [T, NSUB]
     dmin = torch.stack([d.min(1).values for d in d0], 1).cpu().numpy()          # [T, 2]
-    near = (dmin < ACTIVE_M).any(1)
+    near = (dmin < 0).any(1) if args.pen_frames_only else (dmin < ACTIVE_M).any(1)
     act = np.zeros(T, bool)
     for f in np.flatnonzero(near):
         act[max(0, f - PAD):f + PAD + 1] = True
@@ -227,7 +227,11 @@ def episode(ep, args, body, hsets):
         e_2d = torch.zeros((), device="cuda")
         for k in range(2):
             r = (proj(J[:, jmaps[k]]) - hand_t[:, k]).norm(dim=-1) / 6.0
-            e_2d = e_2d + (hand_w[:, k, None] * torch.nn.functional.huber_loss(r, torch.zeros_like(r), reduction="none", delta=2.0)).mean()
+            e_2d = e_2d + args.w_2d_hand * (hand_w[:, k, None] * torch.nn.functional.huber_loss(r, torch.zeros_like(r), reduction="none", delta=2.0)).mean()
+        e_hd = torch.zeros((), device="cuda")
+        if args.w_hdisp > 0:                                        # metric prior: dense hand vertices stay where SAM put them
+            for k in range(2):
+                e_hd = e_hd + ((V[:, hidx[k]] - V0[fr][:, hidx[k]]) ** 2).sum(-1).mean() / 0.002 ** 2
         rb = (proj(J[:, pj]) - body_t).norm(dim=-1) / 6.0
         e_2d = e_2d + (body_w * torch.nn.functional.huber_loss(rb, torch.zeros_like(rb), reduction="none", delta=2.0)).mean()
         e_prior = (prior_w * delta ** 2).sum(1).mean()
@@ -245,7 +249,7 @@ def episode(ep, args, body, hsets):
             dz = (J[:, cap_j, 2] - J0[fr][:, cap_j, 2]).abs()
             e_cap = (torch.relu(dz - args.depth_cap) ** 2).sum(1).mean() / args.depth_cap ** 2
         loss = (args.w_pen * e_pen + args.w_con * e_con + args.w_rig * e_rig + args.w_2d * e_2d + e_prior
-                + args.w_tmp * e_tmp + args.w_jacc * e_jacc + args.w_img * e_img + args.w_cap * e_cap)
+                + args.w_tmp * e_tmp + args.w_jacc * e_jacc + args.w_img * e_img + args.w_cap * e_cap + args.w_hdisp * e_hd)
         loss.backward(); opt.step()
         if it % 25 == 0 or it == args.iters - 1:
             hist.append({"it": it, "loss": float(loss), "pen": float(e_pen), "con": float(e_con), "rig": float(e_rig), "2d": float(e_2d)})
@@ -297,6 +301,9 @@ def main():
     ap.add_argument("--sigma_arm", type=float, default=6.0); ap.add_argument("--sigma_hand", type=float, default=2.0)
     ap.add_argument("--no_arm", action="store_true")
     ap.add_argument("--nsub", type=int, default=NSUB)
+    ap.add_argument("--w_hdisp", type=float, default=0.0, help="weight of the dense hand-vertex displacement prior (2 mm scale)")
+    ap.add_argument("--w_2d_hand", type=float, default=1.0, help="factor on the MediaPipe hand-landmark 2D term")
+    ap.add_argument("--pen_frames_only", action="store_true", help="solve only frames where a hand penetrates (+ taper)")
     ap.add_argument("--free_fingers_in_grasp", action="store_true",
                     help="no image preservation of finger landmarks in stable-grasp windows (wrist and elbow stay held)")
     ap.add_argument("--w_img", type=float, default=0.0); ap.add_argument("--sigma_img", type=float, default=2.0)

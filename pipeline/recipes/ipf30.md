@@ -83,3 +83,29 @@ On all 30 episodes, two runs each:
 | contact gap | 18.0 / 18.1 mm | 18.0 / 17.9 mm |
 | stable-grasp drift | 2.6 mm/frame | 2.3 mm/frame |
 | held-out ViTPose | 5.374 px | 5.380 px |
+
+## Version Mw (minimal hand displacement)
+
+Kaggle showed that reshaping the hands costs CD-H. Mean dense-hand displacement against the scored human tracked
+CD-H on every scored file:
+
+| File | hand displacement | Kaggle CD-H |
+|---|---|---|
+| no hand fix | 0 | 14.668 |
+| 10-17 hand fix | 0.15 cm | 14.670 |
+| Afr2b | 0.65 cm | 14.764 |
+| IPf30 | 1.10 cm | 14.935 |
+
+This version keeps the dense hand vertices where SAM 3D Body put them. It uses a metric prior at a 2 mm scale, drops
+the MediaPipe hand-landmark term (11-27 px errors in grasps) and solves only frames with penetration.
+
+    CONTACT_ARGS="--w_prior_arm 2000 --w_img 20 --w_cap 1000 --nsub 0 --w_2d_hand 0 --pen_frames_only \
+                  --w_con 200000 --w_rig 20000 --w_hdisp 0.3"
+
+Local result on all 30 episodes:
+
+| Measure | Mw | Afr2b |
+|---|---|---|
+| self-PEN | 0.00069 | 0.00084 |
+| hand displacement | 0.30 cm | 0.65 cm |
+| contact gap after | 15.9 mm (base 19.9 mm) | — |
