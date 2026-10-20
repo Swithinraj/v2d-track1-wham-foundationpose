@@ -130,3 +130,20 @@ Local result:
 | self-PEN | 0.00038 | 0.00084 |
 | contact gap | 20.3 → 16.7 mm | — |
 | pose change at the first scored frame | 0 | — |
+
+## Version JD (joint hands + human depth, objects fixed)
+
+The offline interaction states (`scripts/interaction_states.py`) mark grasp intervals. The solver then corrects the
+hands and a smooth whole-body depth shift together, against the same current scene:
+
+- The depth shift runs along the camera ray through the pelvis, only inside interaction segments.
+- Hand displacement is measured relative to the shifted body.
+- Contact patches are weighted by the grasp posterior.
+- The first scored frame stays frozen.
+
+    CONTACT_STATES=1 CONTACT_ARGS="--w_prior_arm 2000 --w_img 20 --w_cap 1000 --nsub 0 --w_2d_hand 0 --freeze_anchor \
+      --w_con 200000 --w_rig 20000 --w_hdisp 0.3 --w_patch 200000 --depth_shift"
+    pipeline/stages/contact_solve.sh episodes_cand_Afr2b episodes_cand_Afr2b episodes_cand_JD
+
+Objects and the first scored frame are unchanged, so CD-O and ACC-O equal Afr2b's. Its CD-H tests whether the
+human's depth, rather than the object's, should move during grasps.

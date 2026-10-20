@@ -210,17 +210,40 @@ def episode(ep, args, body, hsets):
     def make_delta():
         return torch.where(is_arm[None], G_arm @ delta_c, G_hand @ delta_c)
     delta = make_delta()
-    opt = torch.optim.Adam([delta_c], lr=args.lr)
+    params = [delta_c]
+    # joint whole-body depth shift (stage 5, step 2): smooth along the camera ray through the pelvis, only inside the
+    # interaction segments (segment taper; first scored frame frozen), evaluated in the same solve as the hands
+    ray = (J0[fr][:, 1] / J0[fr][:, 1].norm(dim=-1, keepdim=True)).detach()
+    flipv = torch.tensor([1.0, -1.0, -1.0], device="cuda")
+    d_c = torch.zeros(F, device="cuda", requires_grad=bool(args.depth_shift))
+    G_d = basis(args.depth_sigma) if args.depth_shift else None
+    if args.depth_shift:
+        params.append(d_c)
+
+    def depth():
+        return (taper[:, 0] * (G_d @ d_c)) if args.depth_shift else torch.zeros(F, device="cuda")
+    # grasp-weighted contact patches from the offline interaction model (posterior of 'grasp' per frame and hand)
+    patch_m = None
+    if args.states_dir:
+        stz = np.load(Path(args.states_dir) / f"{tag}.npz"); pg = torch.tensor(stz["posterior"][frn, :, 2], dtype=torch.float32, device="cuda")
+        patch_m = []
+        for k in range(2):
+            m = (d0f[k].abs() < 0.03).float() * (pg[:, k:k + 1] >= 0.5).float()
+            patch_m.append(m * pg[:, k:k + 1] / m.sum(1, keepdim=True).clamp(min=1.0))
+    opt = torch.optim.Adam(params, lr=args.lr)
     prior_w = torch.where(is_arm, torch.tensor(args.w_prior_arm, device="cuda"), torch.tensor(args.w_prior_hand, device="cuda"))
     base = pose0[fr]
     hist = []
     for it in range(args.iters):
         opt.zero_grad()
-        delta = make_delta()
+        delta = make_delta(); dd = depth()
         pose = base.clone(); pose[:, ci] = base[:, ci] + taper * delta
+        pose[:, 0:3] = pose[:, 0:3] + 10.0 * flipv * (dd[:, None] * ray)
         V, J = body(pose, z)
         dist = [signed(V, h) for h in hsub]
         e_pen = sum((torch.relu(MARGIN - d) ** 2).sum(1).mean() for d in dist)
+        e_patch = sum((patch_m[k] * dist[k] ** 2).sum() for k in range(2)) / F if patch_m is not None else torch.zeros((), device="cuda")
+        e_dep = ((dd / args.sig_depth) ** 2).mean()
         e_con, e_rig = torch.zeros((), device="cuda"), torch.zeros((), device="cuda")
         for k, f0, f1, touch, stable in windows:
             dk = dist[k][f0:f1][:, touch]; gate = (d0f[k][f0:f1][:, touch].abs() < CONTACT_M).float()
@@ -235,7 +258,7 @@ def episode(ep, args, body, hsets):
         e_hd = torch.zeros((), device="cuda")
         if args.w_hdisp > 0:                                        # metric prior: dense hand vertices stay where SAM put them
             for k in range(2):
-                e_hd = e_hd + ((V[:, hidx[k]] - V0[fr][:, hidx[k]]) ** 2).sum(-1).mean() / 0.002 ** 2
+                e_hd = e_hd + ((V[:, hidx[k]] - V0[fr][:, hidx[k]] - dd[:, None, None] * ray[:, None]) ** 2).sum(-1).mean() / 0.002 ** 2
         rb = (proj(J[:, pj]) - body_t).norm(dim=-1) / 6.0
         e_2d = e_2d + (body_w * torch.nn.functional.huber_loss(rb, torch.zeros_like(rb), reduction="none", delta=2.0)).mean()
         e_prior = (prior_w * delta ** 2).sum(1).mean()
@@ -253,14 +276,17 @@ def episode(ep, args, body, hsets):
             dz = (J[:, cap_j, 2] - J0[fr][:, cap_j, 2]).abs()
             e_cap = (torch.relu(dz - args.depth_cap) ** 2).sum(1).mean() / args.depth_cap ** 2
         loss = (args.w_pen * e_pen + args.w_con * e_con + args.w_rig * e_rig + args.w_2d * e_2d + e_prior
-                + args.w_tmp * e_tmp + args.w_jacc * e_jacc + args.w_img * e_img + args.w_cap * e_cap + args.w_hdisp * e_hd)
+                + args.w_tmp * e_tmp + args.w_jacc * e_jacc + args.w_img * e_img + args.w_cap * e_cap + args.w_hdisp * e_hd
+                + args.w_patch * e_patch + e_dep)
         loss.backward(); opt.step()
         if it % 25 == 0 or it == args.iters - 1:
             hist.append({"it": it, "loss": float(loss), "pen": float(e_pen), "con": float(e_con), "rig": float(e_rig), "2d": float(e_2d)})
     with torch.no_grad():
-        delta = make_delta()
+        delta = make_delta(); dd = depth()
         pose = base.clone(); pose[:, ci] = base[:, ci] + taper * delta
+        pose[:, 0:3] = pose[:, 0:3] + 10.0 * flipv * (dd[:, None] * ray)
         V, J = body(pose, z)
+        depth_stats = [float(dd.abs().median() * 100), float(dd.abs().max() * 100)]
         dist = [signed(V, h) for h in hsub]
         pen_after = float(sum(torch.relu(-d).mean(1).mean() for d in dist) * 100)
         pen_before = float(sum(torch.relu(-d).mean(1).mean() for d in d0f) * 100)
@@ -287,7 +313,7 @@ def episode(ep, args, body, hsets):
            "max_move_at": [int(frn[int(dsc.amax(1).argmax())]), SCORED_J[int(dsc.amax(0).argmax())]],
            "contact_gap_mm": [float(np.mean(g) * 1000) if g else None for g in gap],
            "stable_contact_drift_mm_per_frame": [float(np.mean(g) * 1000) if g else None for g in drift],
-           "reliable_landmark_image_move_px": img_move, "wrist_elbow_depth_move_cm_mean_max": [float(dzr.mean() * 100), float(dzr.max() * 100)],
+           "reliable_landmark_image_move_px": img_move, "depth_shift_cm_median_max": depth_stats, "wrist_elbow_depth_move_cm_mean_max": [float(dzr.mean() * 100), float(dzr.max() * 100)],
            "history": hist}
     return tag, rep
 
@@ -309,6 +335,10 @@ def main():
     ap.add_argument("--w_2d_hand", type=float, default=1.0, help="factor on the MediaPipe hand-landmark 2D term")
     ap.add_argument("--pen_frames_only", action="store_true", help="solve only frames where a hand penetrates (+ taper)")
     ap.add_argument("--freeze_anchor", action="store_true", help="no correction within 2 frames of the first scored frame (ramp 15)")
+    ap.add_argument("--depth_shift", action="store_true", help="joint smooth whole-body depth shift along the pelvis ray")
+    ap.add_argument("--depth_sigma", type=float, default=20.0); ap.add_argument("--sig_depth", type=float, default=0.05)
+    ap.add_argument("--states_dir", default="", help="interaction posteriors (interaction_states.py) for grasp-weighted contact patches")
+    ap.add_argument("--w_patch", type=float, default=0.0)
     ap.add_argument("--scored_frames", default=str(T1 / "outputs/hand_fix/episodes_repro_depth_refine_meshes/scored_frames.json"),
                     help="JSON {episode: [scored frame indices]} (budget_object_meshes.py output)")
     ap.add_argument("--free_fingers_in_grasp", action="store_true",
