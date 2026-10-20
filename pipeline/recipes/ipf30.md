@@ -109,3 +109,24 @@ Local result on all 30 episodes:
 | self-PEN | 0.00069 | 0.00084 |
 | hand displacement | 0.30 cm | 0.65 cm |
 | contact gap after | 15.9 mm (base 19.9 mm) | — |
+
+## Version AFw (Afr2b's human, first scored frame frozen)
+
+Kaggle also showed that the human at each episode's first scored frame moves CD-O through the scorer's single
+Sim(3). Three files with byte-identical objects scored CD-O 18.739 (Afr2b's human), 18.829 (Mw) and 18.871 (IPf30).
+
+This version therefore starts from Afr2b's human (hand fix and arm clearance) and leaves the first scored frame
+unchanged: no correction within ±2 frames, then a 15-frame ramp. The scorer's alignment is identical to Afr2b's, and
+the minimal-displacement solve acts elsewhere.
+
+    CONTACT_ARGS="--w_prior_arm 2000 --w_img 20 --w_cap 1000 --nsub 0 --w_2d_hand 0 --pen_frames_only --freeze_anchor \
+                  --w_con 200000 --w_rig 20000 --w_hdisp 0.3"
+    pipeline/stages/contact_solve.sh episodes_cand_Afr2b episodes_cand_Afr2b episodes_cand_AFw
+
+Local result:
+
+| Measure | AFw | Afr2b |
+|---|---|---|
+| self-PEN | 0.00038 | 0.00084 |
+| contact gap | 20.3 → 16.7 mm | — |
+| pose change at the first scored frame | 0 | — |

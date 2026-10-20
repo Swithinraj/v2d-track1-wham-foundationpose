@@ -128,6 +128,10 @@ def episode(ep, args, body, hsets):
     for s_id in np.unique(seg):
         ix = np.flatnonzero(seg == s_id); n = len(ix); r = np.minimum(np.arange(n), np.arange(n)[::-1]) / max(PAD, 1)
         r = np.clip(r, 0, 1); taper[ix] = r * r * (3 - 2 * r)
+    if args.freeze_anchor:                                         # keep the human of the first scored frame (the
+        sc = json.loads(Path(args.scored_frames).read_text())       # frame the scorer's Sim(3) is fitted on) exactly
+        a0 = min(sc[str(ep)])                                         # unchanged; corrections ramp in over 15 frames
+        r = np.clip((np.abs(frn - a0) - 2) / 15.0, 0, 1); taper = taper * r * r * (3 - 2 * r)
     taper = torch.tensor(taper, dtype=torch.float32, device="cuda")[:, None]
 
     def basis(sigma):                                             # smooth corrections: Gaussian kernel within segments
@@ -304,6 +308,9 @@ def main():
     ap.add_argument("--w_hdisp", type=float, default=0.0, help="weight of the dense hand-vertex displacement prior (2 mm scale)")
     ap.add_argument("--w_2d_hand", type=float, default=1.0, help="factor on the MediaPipe hand-landmark 2D term")
     ap.add_argument("--pen_frames_only", action="store_true", help="solve only frames where a hand penetrates (+ taper)")
+    ap.add_argument("--freeze_anchor", action="store_true", help="no correction within 2 frames of the first scored frame (ramp 15)")
+    ap.add_argument("--scored_frames", default=str(T1 / "outputs/hand_fix/episodes_repro_depth_refine_meshes/scored_frames.json"),
+                    help="JSON {episode: [scored frame indices]} (budget_object_meshes.py output)")
     ap.add_argument("--free_fingers_in_grasp", action="store_true",
                     help="no image preservation of finger landmarks in stable-grasp windows (wrist and elbow stay held)")
     ap.add_argument("--w_img", type=float, default=0.0); ap.add_argument("--sigma_img", type=float, default=2.0)
