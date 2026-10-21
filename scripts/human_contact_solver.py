@@ -166,7 +166,7 @@ def episode(ep, args, body, hsets):
             f = g2
     # MediaPipe 2-D targets (actor by nearest body landmarks), projection
     a = json.loads((T1 / f"outputs/alignment_sam/{tag}/alignment.json").read_text()); K, ds = a["intrinsics"], float(a["depth_scale"])
-    mpz = np.load(T1 / f"outputs/mediapipe/{tag}.npz"); mp, mh, ms = mpz["pose"], mpz["hands"], mpz["hand_score"]
+    mpz = np.load(T1 / args.kp2d_dir / f"{tag}.npz"); mp, mh, ms = mpz["pose"], mpz["hands"], mpz["hand_score"]
 
     def proj(J):
         c = ds * J
@@ -323,6 +323,8 @@ def main():
     ap.add_argument("--human", type=Path, required=True); ap.add_argument("--objects", type=Path, required=True)
     ap.add_argument("--out", type=Path, required=True); ap.add_argument("--sdf", type=Path, default=T1 / "outputs/contact_sdf")
     ap.add_argument("--episodes", type=int, nargs="*", default=list(range(30)))
+    ap.add_argument("--kp2d_dir", default="outputs/mediapipe",
+                    help="2D body/hand landmarks in MediaPipe's layout under TRACK1_ROOT (e.g. outputs/kp2d_vitpose: ViTPose body, no hands)")
     ap.add_argument("--iters", type=int, default=200); ap.add_argument("--lr", type=float, default=0.01)
     ap.add_argument("--w_pen", type=float, default=2e5); ap.add_argument("--w_con", type=float, default=2e3)
     ap.add_argument("--w_rig", type=float, default=2e3); ap.add_argument("--w_2d", type=float, default=1.0)
