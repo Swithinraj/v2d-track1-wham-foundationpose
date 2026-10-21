@@ -94,3 +94,44 @@ As with IPf30 (see `ipf30.md`, Determinism), the GPU solve is not bit-reproducib
 produced by the recorded run.
 
 ## Local validation
+
+All local measures are on the final MHR after all processing, over the scored frames of all 30 episodes.
+
+| Measure | VPQ | AFw | SMSD4H (AFw + smoothing + QH + object smoothing) |
+|---|---|---|---|
+| scorer-style self-PEN | 0.000357 | 0.000379 | 0.000306 |
+| object acceleration (ACC-O stand-in) | 0.034964 | 0.035134 | 0.034964 |
+| scored-joint self-acceleration (ACC-H stand-in) | 0.05186 | 0.05266 | 0.05253 |
+| dense-hand displacement from AFw | 1.16 cm | 0 | 0.08 cm |
+| scored-joint change from AFw: all frames / first scored frame | 0.144 / 0.113 cm | 0 | 0.005 / 0 cm |
+| ViTPose 2D | 5.479 px | 5.506 px | 5.507 px |
+
+The ViTPose 2D row is not independent for VPQ: ViTPose is now one of the refinement's inputs.
+
+Execution of the recorded run:
+
+- Recipe steps 1-2 ran in one job.
+- The hand fix ran split by episode, using the same commands (as `hand_fix.sh` allows).
+- The remaining recipe lines ran verbatim from this commit's `vpq_final.sh` on a clean tree.
+
+The packed parquet equals a fresh repack byte for byte. Packed file:
+`candVPQ_d724234.parquet`, SHA256 `7cb003ee...7d3b`.
+
+## Kaggle (2026-10-21)
+
+| Board | VPQ | AFw | Change |
+|---|---|---|---|
+| CD-H | 14.51732 | 14.76807 | −0.251 |
+| CD-O | 18.40107 | 18.73858 | −0.338 |
+| ACC-H | 0.13942 | 0.13981 | −0.00039 |
+| ACC-O | 0.07139 | 0.07147 | −0.00008 |
+| PEN | 0.00051 | 0.00049 | +0.00002 |
+
+The ACC-H change matched the local stand-in: Kaggle moves by about half the local scored-joint change, and the
+predicted value was 0.1394.
+
+CD-H improved even though the hands moved 1.16 cm from AFw's. The hand-displacement stand-in applies only to reshaping
+the same human. A human rebuilt from better 2D evidence can move the hands toward the ground truth.
+
+CD-O improved as well, through the scorer's single Sim(3) on the human at the first scored frame (0.113 cm change
+there).
