@@ -168,3 +168,22 @@ Local results:
 | scored-joint self-acceleration | 0.04899 | 0.05186 |
 | ViTPose 2D | 5.487 px | 5.479 px |
 | first scored frame | unchanged | unchanged |
+
+Kaggle (2026-10-22):
+
+| Board | VPQ2 | VPQ | Change |
+|---|---|---|---|
+| CD-H | 14.51720 | 14.51732 | −0.0001 |
+| CD-O | 18.39830 | 18.40107 | −0.0028 |
+| ACC-H | 0.13935 | 0.13942 | −0.00007 |
+| ACC-O | 0.07073 | 0.07139 | −0.00066 |
+| PEN | 0.00050 | 0.00051 | −0.00001 |
+
+**Object smoothing worked.** ACC-O moved by 0.20 times the local object self-acceleration drop (λ100). This is below
+the 0.39-0.47 seen at smaller λ steps, so the returns diminish.
+
+**The depth step did not work for ACC-H.** It removed 5.5 % of the local scored-joint self-acceleration, which the
+calibration predicted as −0.0012, but Kaggle moved by only −0.00007. The depth motion that remains after the LAM 300
+refit is therefore mostly real motion that the ground truth shares; the noise ratio was measured on the raw human,
+before the refit. The local ACC-H stand-in holds for articulation changes but not for root depth. The step is harmless:
+the other four boards are unchanged or slightly better.
