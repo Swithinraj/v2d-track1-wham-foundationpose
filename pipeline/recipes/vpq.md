@@ -135,3 +135,36 @@ the same human. A human rebuilt from better 2D evidence can move the hands towar
 
 CD-O improved as well, through the scorer's single Sim(3) on the human at the first scored frame (0.113 cm change
 there).
+
+## Version VPQ2: depth-axis temporal refinement and stronger object smoothing (before the contact stage)
+
+    pipeline/recipes/vpq2_final.sh episodes_cand_VPQ2      # inputs pinned in vpq2_inputs.sha256
+
+**Human depth.** A monocular body estimate is much noisier along the camera ray than across it:
+- Raw pelvis residuals in the camera frame have a median σz²/σxy² of 13.4, about 3.7 times the noise in std.
+- The refit smooths all axes with LAM 300, and 2D evidence cannot see depth.
+
+`depth_smooth_root.py` estimates that ratio per episode from the raw human. It adds a depth-axis Whittaker smoothing of
+LAM_add = 300·(r² − 1), with a median of 3,704, keeps the first scored frame pinned, and moves the body along each frame's
+camera ray through the pelvis. The pelvis projection is therefore unchanged. Mean depth change: 0.50 cm.
+
+**Objects.** Kaggle ACC-O fell by 0.39-0.47 times the local object self-acceleration drop every time only object
+smoothing changed. Our object acceleration therefore behaves like noise unrelated to the ground-truth motion, so
+translations get λ 100 (`physics_objects.py --no_rest --no_gravity --lam 100`). Rigid objects move 0.02-0.20 cm.
+
+**Contact.** Both steps come before VPQ's contact stage, which restores non-penetration: applied after it, the depth step
+doubled PEN.
+
+**Port check.** The ported `depth_smooth_root.py` reproduces the recorded run to float32 rounding (at most 0.0004 mm,
+from the BLAS thread count).
+
+Local results:
+
+| Measure | VPQ2 | VPQ |
+|---|---|---|
+| self-PEN | 0.000342 | 0.000357 |
+| ep27 self-PEN | 0.00387 | 0.00432 |
+| object self-acceleration | 0.03172 | 0.03496 |
+| scored-joint self-acceleration | 0.04899 | 0.05186 |
+| ViTPose 2D | 5.487 px | 5.479 px |
+| first scored frame | unchanged | unchanged |
