@@ -6,8 +6,10 @@ Per episode: full-resolution frames of the exo video; per-frame box of the actor
 episode (median MoGe-2 intrinsics, outputs/camera). Each frame goes
 through SAM3DBodyEstimator.process_one_image with inference_type "full" (body + hand decoders). Every output
 field is saved unchanged (raw_<episode>.npz) before any refinement, plus projection overlays every N frames.
+--inference_type body --mask_prompt is the organizers' per-view path (estimate_mhr_params: body decoder only, the
+actor's SAM 2 mask as mask prompt with its box); frames with an empty mask keep the nearest box and no mask.
 Writes outputs/sam3d_body/<episode>/raw_<episode>.npz, summary.json and overlay/.
-Usage (inside the container): sam3d_body_video.py --episodes E [E ...] [--out DIR] [--inference_type full]
+Usage (inside the container): sam3d_body_video.py --episodes E [E ...] [--out DIR] [--inference_type full] [--mask_prompt]
 """
 import argparse
 import json
@@ -61,6 +63,7 @@ def main():
     ap.add_argument("--out", type=Path, default=T1 / "outputs/sam3d_body")
     ap.add_argument("--episodes", type=int, nargs="+", required=True)
     ap.add_argument("--inference_type", default="full", choices=("full", "body"))
+    ap.add_argument("--mask_prompt", action="store_true")
     ap.add_argument("--render_every", type=int, default=30)
     args = ap.parse_args()
     dev = torch.device("cuda")
@@ -80,13 +83,20 @@ def main():
         Wd, Hd = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         boxes, n_valid = person_boxes(tag, T)
         cols = {k: [] for k in FIELDS}
+        n_mask = 0
         t0 = time.time()
         for f in range(T):
             ok, bgr = cap.read()
             if not ok:
                 raise RuntimeError(f"{tag}: video ended at frame {f} of {T}")
             rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
-            res = est.process_one_image(img=rgb, bboxes=boxes[f], masks=None, cam_int=torch.from_numpy(K)[None],
+            mask = None
+            if args.mask_prompt:
+                m = cv2.imread(str(T1 / "outputs/person" / tag / "sam2_masks/0" / f"{f:06d}.png"), cv2.IMREAD_GRAYSCALE)
+                if m is not None and (m > 127).any():
+                    mask = ((m > 127).astype(np.uint8) * 255)[None, ..., None]   # its box is boxes[f]
+                    n_mask += 1
+            res = est.process_one_image(img=rgb, bboxes=boxes[f], masks=mask, cam_int=torch.from_numpy(K)[None],
                                         inference_type=args.inference_type)
             if len(res) != 1:
                 raise RuntimeError(f"{tag} frame {f}: {len(res)} outputs for one box")
@@ -107,7 +117,8 @@ def main():
                 print(f"{tag} frame {f}/{T} ({(time.time() - t0) / (f + 1):.2f} s/frame)", flush=True)
         arrays = {k: np.stack(v).astype(np.float32) for k, v in cols.items() if v and v[0] is not None}
         np.savez_compressed(out_dir / f"raw_{tag}.npz", faces=faces, K=K, prompt_boxes=boxes, **arrays)
-        summary = {"frames": T, "frames_with_mask_box": int(n_valid), "seconds": round(time.time() - t0, 1),
+        summary = {"frames": T, "frames_with_mask_box": int(n_valid), "inference_type": args.inference_type,
+                   "mask_prompt_frames": n_mask, "seconds": round(time.time() - t0, 1),
                    "fields": {k: list(v.shape) for k, v in arrays.items()}}
         (out_dir / "summary.json").write_text(json.dumps(summary, indent=2))
         print(tag, json.dumps(summary), flush=True)

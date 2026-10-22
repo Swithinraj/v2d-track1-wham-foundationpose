@@ -10,6 +10,7 @@
 # Needs the episode's depth (object_depth.sh) and actor masks (person.sh), and weights/sam3d_body
 # (pipeline/setup/download_sam3d_body.sh). SAM3D_BODY_IMAGE selects the image with the SAM 3D Body library
 # (default v2d_cari4d.sif, which ships it; v2d_sam3d_body.sif from config/sam3d_body.def works as well).
+# SAM3D_BODY_ARGS adds options to step 1, e.g. "--inference_type body --mask_prompt" (pipeline/recipes/bmq_final.sh).
 # SAM3D_BODY_TORCH_HOME overrides the (writable) torch hub cache. A complete raw output is reused unless REDO=1.
 # Usage: sam3d_body.sh EPISODE
 source "$(dirname "${BASH_SOURCE[0]}")/../env.sh"
@@ -26,7 +27,7 @@ mkdir -p "${OUT}"
 done_frames() { "${HOST_PYTHON}" -c "import json,sys; print(json.load(open(sys.argv[1])).get('frames', 0))" "${OUT}/summary.json" 2>/dev/null || echo 0; }
 if [[ "${REDO:-0}" == 1 || ! -s "${OUT}/raw_${TAG}.npz" || "$(done_frames)" != "${FRAMES}" ]]; then
   in_container "${SAM3D_BODY_IMAGE:-v2d_cari4d.sif}" TORCH_HOME="${SAM3D_BODY_TORCH_HOME:-/track1/weights/sam3d_body/torch_home}" \
-    python -u /track1/scripts/sam3d_body_video.py --episodes "${EPISODE}"
+    python -u /track1/scripts/sam3d_body_video.py --episodes "${EPISODE}" ${SAM3D_BODY_ARGS:-}
 fi
 in_container v2d_cari4d.sif python /track1/scripts/sam3d_body_identity.py --episodes "${EPISODE}"
 in_container mhr_converter.sif python /track1/scripts/sam3d_body_refit.py --episodes "${EPISODE}"
