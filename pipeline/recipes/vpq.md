@@ -187,3 +187,42 @@ calibration predicted as −0.0012, but Kaggle moved by only −0.00007. The dep
 refit is therefore mostly real motion that the ground truth shares; the noise ratio was measured on the raw human,
 before the refit. The local ACC-H stand-in holds for articulation changes but not for root depth. The step is harmless:
 the other four boards are unchanged or slightly better.
+
+## Version VPQ3: restored image-plane motion (lateral band) before the contact stage
+
+    pipeline/recipes/vpq3_final.sh episodes_cand_VPQ3      # inputs pinned in vpq3_inputs.sha256 (+ vpq_inputs.sha256)
+
+**Why.**
+- Triple collocation of 2D accelerations shows real visible motion at 1-2 Hz with raw SNR 4-30. The three sources are
+  per-frame SAM 3D Body projected, tracked ViTPose and MediaPipe.
+- The λ300 refit cuts image-plane motion at about 1 Hz.
+- The ACC-H ground truth keeps that motion: it is a multi-view SAM 3D Body fusion with a first-order temporal prior, and
+  its acceleration (0.116-0.134 cm/f² in the kit documentation) matches the visible motion.
+- Root-depth smoothing did not transfer to Kaggle (VPQ2), whereas lateral content is mostly real.
+
+**What.**
+- Per vertex, in image coordinates: target = VPQ2 + w · [S_100 − S_300](raw u, v) · z.
+- Depth is kept and the first scored frame is pinned (weight tapers to 0 over ±10 frames; anchor pose row copied).
+- Evidence weight w per frame and part, upper body only:
+
+      w = (clip((ViTPose conf − 0.5)/0.3) × exp(−½ (d / 3·1.4826·MAD)²) × mask visibility, Gaussian σ = 2)²
+
+  with d = |raw 2D − ViTPose 2D| after removing its per-episode median. Mask visibility means inside the actor's SAM 2
+  mask and outside the object's mask. No MediaPipe in the build.
+- The pose is re-fitted with lm_pose, then VPQ's contact stage runs.
+
+**Local validation on the finished output vs VPQ2.**
+- Proxy: noise-cancelling 2D acceleration proxy, E|a_c − a_D|² − E|a_q − a_D|² = MSE_c − MSE_q. MediaPipe is the primary
+  reference; it is not a build input.
+- Upper body:
+  - MediaPipe reference: ΔMSE −9.83e-4 (SE 1.74), 29/30 episodes better;
+  - ViTPose reference: −9.24e-4, 29/30 episodes better.
+- Self-acceleration rises +14 % on confident frames and +15 % on the others (gate: no more than confident + 5 points).
+- self-PEN 0.000330 (VPQ2 0.000342), ep27 0.00376.
+- Objects identical; anchor unchanged.
+- MediaPipe wrist 2D 6.10 px (VPQ2 6.25).
+- Planning value (council critic): ACC-H −0.0008 (range −0.0003 to −0.0013).
+
+**Port checks.**
+- `mask_visibility.py` reproduces the run's visibility exactly (0 of 30 episodes differ).
+- `lateral_band_refit.py` reproduces the run's pre-contact poses to 7.3e-6 (float32 rounding).
