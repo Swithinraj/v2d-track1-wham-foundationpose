@@ -226,3 +226,16 @@ the other four boards are unchanged or slightly better.
 **Port checks.**
 - `mask_visibility.py` reproduces the run's visibility exactly (0 of 30 episodes differ).
 - `lateral_band_refit.py` reproduces the run's pre-contact poses to 7.3e-6 (float32 rounding).
+
+Kaggle (2026-10-22):
+
+| Board | VPQ3 | VPQ2 | Change |
+|---|---|---|---|
+| CD-H | 14.50562 | 14.51720 | −0.0116 |
+| CD-O | 18.39830 | 18.39830 | identical |
+| ACC-H | 0.13895 | 0.13935 | −0.00040 |
+| ACC-O | 0.07073 | 0.07073 | identical |
+| PEN | 0.00049 | 0.00050 | −0.00001 |
+
+ACC-H improved although our own scored-joint acceleration rose (local self-acceleration 0.0490 → 0.0507). The restored
+motion is real and the GT contains it. The gain is at the low end of the planning range.
