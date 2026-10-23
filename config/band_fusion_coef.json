@@ -1,0 +1,27 @@
+{
+ "_comment": "Band-fusion coefficients (scripts/band_fusion_refit.py): GT acceleration regressed on Gaussian-difference bands of the refined (VPQ3-base) and raw human, per band and axis group, on 59 FORM-HOI sequences (nvidia/form-hoi, CC BY-4.0; two disjoint sets of 30, fits averaged). Order: k_B0..k_B4 (ours), m_B0..m_B4 (raw); B4 forced to 1/0 by the script.",
+ "lat": [
+  0.5183151847563285,
+  0.726952519463324,
+  0.6035697431477167,
+  0.6330473942255523,
+  0.8219641037795334,
+  0.003355624356680211,
+  0.00881654709270824,
+  0.19166946087877215,
+  0.9087564662004546,
+  0.06619454059433526
+ ],
+ "dep": [
+  0.8449873535393378,
+  0.9754981973346506,
+  1.0189453909092934,
+  1.0504354687446162,
+  0.9668881218388223,
+  -1.3442589158758127e-05,
+  -8.721565706743076e-05,
+  0.02046971833298762,
+  0.3175017728812062,
+  0.06898458488825693
+ ]
+}
