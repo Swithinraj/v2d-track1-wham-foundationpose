@@ -59,3 +59,26 @@ Inputs are pinned in `bmq_inputs.sha256`: `submissions/episodes_objects_vpq` and
 **Pre-registered Kaggle decision (CD-H):**
 - success: CD-H ≤ 14.42 with CD-O ≤ 18.498;
 - failure: CD-H ≥ 14.52.
+
+## Version BMQ-K: objects in the body-mode run's depth scale
+
+BMQ re-derived the MoGe/SAM depth scale s from the body-mode raw output (median +0.53 %, range −0.12..+1.22 %) but kept
+VPQ's objects, which the episode builder expresses with the full-mode s (`object_translation = t_co / s`,
+`object_scale = s_co / s`). The human moved along the camera rays with s and the objects did not; the first-frame
+Sim(3), fitted on the human, then moved the objects (BMQ's CD-O +0.26 with byte-identical objects).
+`scripts/rescale_objects.py` multiplies object translation and scale by s_full / s_body (a scaling about the camera:
+projection unchanged) on BMQ's pre-contact episodes; then the identical contact stage (`bmqk_final.sh`).
+- Round trip old → new → old: max |Δt| 0.0002 mm; human and object rotation untouched before the contact stage.
+- Local (challenge episodes): contact stage changes the human by 0.02 cm; self-PEN 0.000288 (BMQ 0.000294).
+- **FORM-HOI validation** (60 held-out-style sequences with multi-view GT, `nvidia/form-hoi`, official metric code, two
+  roots of 30): BMQ-K vs BMQ CD-O −0.77 (root A) / −0.83 (root B); BMQ vs VPQ2 CD-H −1.60 / −0.29, ACC-H −0.0004 / −0.0001.
+
+## Version BMQ3-K: BMQ-K + VPQ3's restored image-plane motion
+
+VPQ3's lateral band refit (`lateral_band_refit.py`, λ 100) on BMQ-K's pre-contact human, raw reference = the body-mode
+human before refinement, visibility from the body-mode base bodies, then the identical contact stage (`bmq3k_final.sh`).
+- Local vs BMQ-K: ViTPose 5.41 vs 5.51 px, wrist 5.26 vs 5.51 px; noise-cancelling 2D acceleration proxy MediaPipe −9.38
+  (se 1.76) and ViTPose −9.86 (se 1.67), better in 28/30 episodes each; articulation self-acc ×1.040 (real motion added,
+  as VPQ3 vs VPQ2 ×1.035, which Kaggle scored ACC-H −0.0004); objects identical; self-PEN 0.000291.
+- FORM-HOI: the same refit on VPQ2's base improves CD-H in 29/29 and 29/30 episodes and ACC-H in 29/29 and 29/30
+  (ACC-H −0.0006 / −0.0004), matching Kaggle's VPQ2 → VPQ3 (−0.0004).
