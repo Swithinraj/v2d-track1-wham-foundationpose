@@ -37,3 +37,21 @@ Measured on 30 more recordings, never used for any choice, with the kit metrics 
 | Candidate | Command |
 |---|---|
 | BMQ3-K + GRU | `gru_final.sh episodes_bmq3k_in episodes_bm_depth mask_visibility_bm episodes_cand_BMQ3KG` |
+
+## Contact-stage penetration weight
+`gru_pen_final.sh GRU_IN OUTPUT` reruns the identical contact stage on the GRU's pre-contact output, with the penetration weight in both contact solves raised from 2e5 to 2e6. The variables, priors and objects are unchanged; only the price of a hand point inside the object goes up.
+
+Fresh-group results (30 recordings, kit metrics), against the same GRU output with the production contact stage:
+
+| Penetration weight | PEN | ACC-H | CD-H | CD-O, ACC-O |
+|---|---|---|---|---|
+| 2e5 (production) | 0.00044 | — | — | — |
+| **2e6** | **0.00017 (better in 27/30, worse in none)** | +0.00009 | +0.002 | unchanged |
+| 2e7 | 0.00010 | +0.00027 | +0.011 | unchanged |
+| 2e8 | 0.00009 | +0.00059 | +0.032 | unchanged |
+
+2e6 is used: stronger weights buy little more PEN for a growing cost on the human. On the challenge episodes (no ground truth) the scorer-style self-penetration falls from 0.000319 to 0.000116, the anchor frame is unchanged and the human's own acceleration rises by ×1.004.
+
+| Candidate | Command |
+|---|---|
+| BMQ3-K + GRU + PEN | `gru_pen_final.sh episodes_cand_BMQ3KG_gru_in episodes_cand_BMQ3KGP` |
