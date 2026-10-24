@@ -55,3 +55,15 @@ Fresh-group results (30 recordings, kit metrics), against the same GRU output wi
 | Candidate | Command |
 |---|---|
 | BMQ3-K + GRU + PEN | `gru_pen_final.sh episodes_cand_BMQ3KG_gru_in episodes_cand_BMQ3KGP` |
+
+## Model v2: trained on all FORM-HOI groups (`config/gru_motion_v2/`)
+Same architecture, augmentation and loss; trained on 412 episodes (14 recording-disjoint groups, including the FORM-HOI recordings of the challenge's object types), 6000 steps, the checkpoint chosen on the same fifth group as v1. On the 30 fresh recordings (never used for any choice), after the full contact stage, against v1 with the same contact stage:
+
+| Contact stage | ACC-H | CD-H | CD-O, ACC-O | PEN |
+|---|---|---|---|---|
+| production | −0.00045 (better in 25/30) | −0.0004 | unchanged | unchanged |
+| penetration weight 2e6 | −0.00037 (23/30) | +0.0015 | unchanged | 0.00044 → 0.00019 |
+
+| Candidate | Command |
+|---|---|
+| BMQ3-K + GRU v2 + PEN | `GRU_CONFIG=gru_motion_v2 gru_final.sh episodes_bmq3k_in episodes_bm_depth mask_visibility_bm episodes_cand_BMQ3KG2`, then `gru_pen_final.sh episodes_cand_BMQ3KG2_gru_in episodes_cand_BMQ3KG2P` |
