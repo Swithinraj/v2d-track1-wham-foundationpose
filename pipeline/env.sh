@@ -26,10 +26,15 @@ source "${TRACK1_ROOT}/config/upstream.env"
 # unmounted host home; warp and matplotlib then fail to create their caches.)
 # TRACK1_EXTRA_BINDS (optional, space-separated host directories) are mounted read-only at the same
 # path, for checkouts whose data directories are symlinks to another location.
+# A root containing the marker file .tmp_in_work gets a private /tmp per job under work/tmp/ (tools that
+# leave files in /tmp, e.g. FoundationPose's mesh exports, then never fill a node's per-user /tmp quota).
 in_container() {
   local image="$1" extra=() dir
   shift
   for dir in ${TRACK1_EXTRA_BINDS:-}; do extra+=(--bind "${dir}:${dir}:ro"); done
+  if [[ -f "${TRACK1_ROOT}/.tmp_in_work" ]]; then
+    dir="${TRACK1_ROOT}/work/tmp/${SLURM_JOB_ID:-$$}"; mkdir -p "${dir}"; extra+=(--bind "${dir}:/tmp")
+  fi
   apptainer exec --nv --no-home --cleanenv --bind "${TRACK1_ROOT}:/track1" ${extra[@]+"${extra[@]}"} --pwd /track1 \
     "${CONTAINERS}/${image}" env HOME=/tmp MPLCONFIGDIR=/tmp/mpl "$@"
 }

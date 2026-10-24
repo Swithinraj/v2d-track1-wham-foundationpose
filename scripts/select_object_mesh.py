@@ -92,10 +92,21 @@ def main() -> None:
     # serves all of them: the first generator's.
     frames_dir = out / next(iter(sources)) / "scale_frames"
     frames = {int(d.name.split("_")[1]): load_frame(d) for d in sorted(frames_dir.glob("episode_*"))}
+    # MESH_MAX_EPISODES (optional): an object seen in many episodes (FORM-HOI roots: 15 hula-hoop episodes; the challenge
+    # has 3 per object) is scored on that many evenly spaced episodes, with candidates conditioned on them only.
+    keep = None
+    if os.environ.get("MESH_MAX_EPISODES") and len(frames) > int(os.environ["MESH_MAX_EPISODES"]):
+        eps = sorted(frames); n = int(os.environ["MESH_MAX_EPISODES"])
+        keep = {eps[round(i * (len(eps) - 1) / (n - 1))] for i in range(n)} if n > 1 else {eps[0]}
+        frames = {e: f for e, f in frames.items() if e in keep}
+        print(f"{args.object}: selection on episodes {sorted(keep)} (MESH_MAX_EPISODES={n})", flush=True)
     pool = []
     for generator, provenance in sources.items():
         usable = [{**c, "generator": generator, "key": f"{generator}/{c['id']}"} for c in provenance["candidates"]
                   if c["status"] == "ok"]
+        if keep is not None:
+            sub = [c for c in usable if set(c["condition_episodes"]) <= keep]
+            usable = sub if len(sub) >= 2 else usable
         clean = [c for c in usable if not c["plate_suspect"]]
         pool += usable if args.include_plate_suspects or len(clean) < 2 else clean
 
