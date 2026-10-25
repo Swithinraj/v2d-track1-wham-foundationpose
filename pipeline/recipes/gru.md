@@ -67,3 +67,23 @@ Same architecture, augmentation and loss; trained on 412 episodes (14 recording-
 | Candidate | Command |
 |---|---|
 | BMQ3-K + GRU v2 + PEN | `GRU_CONFIG=gru_motion_v2 gru_final.sh episodes_bmq3k_in episodes_bm_depth mask_visibility_bm episodes_cand_BMQ3KG2`, then `gru_pen_final.sh episodes_cand_BMQ3KG2_gru_in episodes_cand_BMQ3KG2P` |
+
+## Learned depth fusion (`config/gru_depth/`)
+On the fresh FORM-HOI group, 37 % of CD-H comes from the whole body drifting along the camera ray after the first frame (the scorer aligns once, at the first scored frame), 17 % from sideways drift, and 37 % from shape and articulation. A hard floor-contact constraint cannot fix the depth part without ground truth: on the steep rays to the feet, 1 cm of floor height is 2.4 cm of depth, so any estimated floor is too coarse. Instead the depth is learned.
+
+- **Cues** (`scripts/depth_cues.py`, per frame, GT-free, each a relative depth error log(true / ours)): MoGe depth at the torso joints vs ours; apparent size, our projected bone lengths vs ViTPose's; floor contact of the planted foot. Anchor-relative versions are included, since the scorer aligns there.
+- **Model** (`scripts/gru_depth_train.py`): v2 fine-tuned with the cue columns and a depth head starting at zero, so training begins exactly at v2. The depth head moves the whole body along the ray through its centroid (size unchanged), smoothed in time (sigma 45 frames) and tapered in from the first scored frame over 45 frames (a faster taper caused an acceleration spike). Trained on the same 412 episodes, checkpoint chosen on the validation group.
+- **Shrinkage**: the predicted correction is applied at 0.75. The validation sweep (rule fixed in advance: best median per-episode gain, smallest scale within 10 %) chose it: full strength wins the mean only through a few large corrections, and the risk grows faster than the gain.
+
+Fresh-group results after the full contact stage, against v2 with the same stage (penetration weight 2e6):
+
+| Depth fusion | CD-H | median | better | CD-O, ACC-O | ACC-H | PEN |
+|---|---|---|---|---|---|---|
+| x1.0 | −0.496 | −0.47 | 17/30 | unchanged | +0.00002 | unchanged |
+| **x0.75** | **−0.519** | **−0.41** | **18/30** | unchanged | +0.00004 | unchanged |
+
+The gain concentrates on episodes where the depth went badly wrong; on typical episodes it is close to neutral. A background-locked MoGe variant (each frame's depth aligned to a static master map, floor evidence read from that map at the feet) was tested and did not help.
+
+| Candidate | Command |
+|---|---|
+| BMQ3-K + depth-GRU + PEN 4e6 | `gru_depth_final.sh episodes_bmq3k_in episodes_bm_depth mask_visibility_bm BM_ROOT episodes_cand_BMQ3KGD` |
