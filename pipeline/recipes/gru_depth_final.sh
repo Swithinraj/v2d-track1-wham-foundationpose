@@ -8,6 +8,7 @@
 # Usage: pipeline/recipes/gru_depth_final.sh IN RAW VISIBILITY SCALE_ROOT OUTPUT
 #   SCALE_ROOT: the root whose outputs/sam3d_body/<episode>/prepare.npz holds the depth scale IN's human is expressed in
 #   (for BMQ3-K the body-mode run, BM_ROOT of bmq_final.sh); it must lie inside TRACK1_ROOT or TRACK1_EXTRA_BINDS.
+#   EPS_SCALE: strength of the depth correction (default 0.75; 0 = the fine-tuned motion head without depth correction)
 source "$(dirname "${BASH_SOURCE[0]}")/../env.sh"
 cd "${TRACK1_ROOT}"
 IN="$1"; RAW="$2"; VIS="$3"; SR="$(cd "$4" && pwd)"; OUT="$5"; S="${TRACK1_ROOT}/submissions"; KP=outputs/kp2d_vpx; W="${OUT}_gd"
@@ -24,7 +25,7 @@ fi
 rm -rf "${S:?}/${W}_in"
 in_container mhr_converter.sif python -u /track1/scripts/gru_depth_refit.py --input "/track1/submissions/${IN}" \
   --raw "/track1/submissions/${RAW}" --visibility "/track1/outputs/${VIS}" --init /track1/config/gru_motion_v2 \
-  --depth_model /track1/config/gru_depth/depth_best.pt --scale_root "${CSR}" --eps_scale 0.75 --out "/track1/submissions/${W}_in"
+  --depth_model /track1/config/gru_depth/depth_best.pt --scale_root "${CSR}" --eps_scale "${EPS_SCALE:-0.75}" --out "/track1/submissions/${W}_in"
 AFW_ARGS="--w_prior_arm 2000 --w_img 20 --w_cap 1000 --nsub 0 --w_2d_hand 0 --pen_frames_only --freeze_anchor \
 --w_con 200000 --w_rig 20000 --w_hdisp 0.3 --kp2d_dir ${KP} --w_pen 4e6"
 CONTACT_ARGS="${AFW_ARGS}" bash pipeline/stages/contact_solve.sh "${W}_in" "${W}_in" "${W}_afw"

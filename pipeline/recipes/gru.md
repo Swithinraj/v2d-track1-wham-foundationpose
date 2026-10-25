@@ -87,3 +87,6 @@ The gain concentrates on episodes where the depth went badly wrong; on typical e
 | Candidate | Command |
 |---|---|
 | BMQ3-K + depth-GRU + PEN 4e6 | `gru_depth_final.sh episodes_bmq3k_in episodes_bm_depth mask_visibility_bm BM_ROOT episodes_cand_BMQ3KGD` |
+| BMQ3-K + fine-tuned motion head (depth off) + PEN 4e6 | `EPS_SCALE=0 gru_depth_final.sh episodes_bmq3k_in episodes_bm_depth mask_visibility_bm BM_ROOT episodes_cand_BMQ3KGM` |
+
+On Kaggle the depth candidate scored CD-H +0.21 worse and ACC-H −0.00011 better than v2 + PEN 2e6. Fine-tuning optimised all parameters, so the motion head changed too; on the challenge episodes the fine-tuned motion head alone reproduces the candidate's smoother motion (own acceleration ×0.983), which is why the depth-off variant is listed.
