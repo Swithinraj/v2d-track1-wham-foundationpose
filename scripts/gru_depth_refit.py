@@ -52,6 +52,8 @@ def main():
     ap.add_argument("--lock_dir", type=Path, help="background-locked MoGe results for this root (unshipped experiment; only for models trained on them)")
     ap.add_argument("--lock_prefix")
     ap.add_argument("--episodes", type=int, nargs="*", default=list(range(30)))
+    ap.add_argument("--save_cues", type=Path, help="also write each episode's cues, predicted depth correction (scaled) and input joints here")
+    ap.add_argument("--cues_only", action="store_true", help="with --save_cues: stop after the cues / correction (no refit, no episodes written)")
     args = ap.parse_args(); dev = "cuda"
     args.out.mkdir(parents=True, exist_ok=True)
     for f in args.input.iterdir():
@@ -107,6 +109,12 @@ def main():
             model = GD.DepthRefiner(feat.shape[1], GD.ncue()).to(dev); model.load_state_dict(ck["model"]); model.eval()
         with torch.no_grad():
             corr, eps = model(torch.cat([(feat - G.MU) / G.SD, (cue - MUc) / SDc], 1)[None]); corr, eps = corr[0], eps[0].double() * args.eps_scale
+        if args.save_cues:                                             # the selector's cues (scripts/corr_select3.py)
+            args.save_cues.mkdir(parents=True, exist_ok=True)
+            np.savez(args.save_cues / f"{tag}.npz", **{k: np.asarray(v) for k, v in cz.items()}, eps=eps.cpu().numpy(), ramp_d=ramp_d.cpu().numpy(),
+                     anchor=anchor, ours=jo_np.astype(np.float32))
+            if args.cues_only:
+                print(tag, f"|eps| {float(eps.abs().mean()) * 100:.3f} %", flush=True); continue
         coef = base.to(dev).view(1, 1, 2, 2, G.NB).expand(T, G.NREG, 2, 2, G.NB).clone()
         coef[..., :4] += corr
         coef = coef.double()

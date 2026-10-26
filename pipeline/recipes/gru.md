@@ -90,3 +90,21 @@ The gain concentrates on episodes where the depth went badly wrong; on typical e
 | BMQ3-K + fine-tuned motion head (depth off) + PEN 4e6 | `EPS_SCALE=0 gru_depth_final.sh episodes_bmq3k_in episodes_bm_depth mask_visibility_bm BM_ROOT episodes_cand_BMQ3KGM` |
 
 On Kaggle the depth candidate scored CD-H +0.21 worse and ACC-H −0.00011 better than v2 + PEN 2e6. Fine-tuning optimised all parameters, so the motion head changed too; on the challenge episodes the fine-tuned motion head alone reproduces the candidate's smoother motion (own acceleration ×0.983), which is why the depth-off variant is listed.
+
+## Common-translation selector (`config/corr_select3_T/`)
+Unrestricted depth correction fails the accurate tracks: on an untouched FORM-HOI group in body mode, the depth head improves the mean only by rescuing badly tracked episodes and worsens 60-67 % of the accurate ones. The selector instead decides, per 6-second block, whether to act at all, and only with a move that keeps every hand-object relation: the human and the object shift by the same vector along the human's camera ray (±0.5 / 1 / 1.5 % of the distance).
+
+- **Targets**: for each block and option, the change of every episode metric when that option alone is applied through the exact deployed map (non-overlapping blocks, Gaussian smoothing sigma 30 frames, taper from the first scored frame), with the kit's definitions on the scored frames: joint error for CD-H, the symmetric Chamfer (sum of both directions) for CD-O, acceleration of joints and of the object translation, hand penetration into the object's SDF.
+- **Model** (`scripts/corr_select3.py`): an MLP on GT-free block features (the depth cues of the depth-GRU, MoGe depth inside the object mask vs our visible object surface, hand-object distance and relative speed, mask area) predicting the five metric changes, plus an upper quantile and a harm probability as auxiliary outputs. Every episode counts equally in training (412 full-mode episodes and 60 body-mode replays).
+- **Decision**: keep, unless an option is predicted to improve both the human and the object term by a margin (8, the most cautious value of the validation sweep; harm on accurate tracks <= 10 % required) with no predicted acceleration or penetration regression. On the challenge episodes it moves 7 of 30 episodes, by 0.2-2.4 cm on average.
+
+Results after the full contact stage (penetration weight 4e6), against the same chain without the selector:
+
+| Group | CD-H | CD-O | ACC-H | ACC-O | PEN |
+|---|---|---|---|---|---|
+| held-out FORM-HOI group, body mode | −0.170 (17/30) | −0.299 (14/30) | +0.00001 | −0.00001 | unchanged |
+| untouched FORM-HOI group, body mode | −0.054 (13/30) | −0.277 (16/30) | unchanged | +0.00001 | unchanged |
+
+| Candidate | Command |
+|---|---|
+| BMQ3-K + motion head (depth off) + selector + PEN 4e6 | `EPS_SCALE=0 gru_depth_final.sh episodes_bmq3k_in episodes_bm_depth mask_visibility_bm BM_ROOT episodes_cand_BMQ3KGM` then `gru_shift_final.sh episodes_bmq3k_in episodes_bm_depth mask_visibility_bm BM_ROOT episodes_cand_BMQ3KGM_gd_in episodes_cand_BMQ3KGMT` |
