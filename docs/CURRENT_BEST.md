@@ -53,3 +53,24 @@ Video Depth Anything (metric, Large) was tested in three ways:
 3. **Against sensor depth.** VDA follows the true change in the person's distance less well than MoGe-2.
 
 None of these is part of a submission.
+
+## Kaggle 2026-10-28: BMQ3KGMa0, and the candidates that keep BMQ3KGM's human
+
+| File | CD-H | CD-O | ACC-H | ACC-O | PEN |
+|---|---|---|---|---|---|
+| BMQ3KGM | 14.35418 | 18.60437 | 0.13629 | 0.07067 | 0.00013 |
+| BMQ3KGMa0 (`0bfe450`) | 14.70203 | 18.01952 | 0.13622 | 0.07066 | 0.00012 |
+
+Switching the depth trend off improved the objects but hurt the human on the challenge data. On FORM-HOI it had improved
+both, so the human result does not transfer.
+
+The next candidates therefore keep BMQ3KGM's human and change only the objects:
+
+- **BMQ3KGMR**: BMQ3KGM plus the depth-reliability module (`pipeline/recipes/rel_final.sh`, `rel.md`).
+- **BMQ3KGMk**: BMQ3KGM with the α-0 object calibration (`pipeline/recipes/kcal_final.sh`).
+- **BMQ3KGMkR**: both changes together (`kcal_final.sh OUTPUT rel`).
+
+**Reproducibility.** Running `rel_final.sh` from this repository reproduces the module's object corrections exactly
+(at most 2e-7) and its motion-head output exactly (scored joints within 0.0002 mm). After the contact stage, repeated
+runs of the existing contact solver differ by 0.07 mm on average in the scored joints, with a few hand and arm frames
+up to several centimetres. That variation comes from the solver itself; this change does not introduce it.
