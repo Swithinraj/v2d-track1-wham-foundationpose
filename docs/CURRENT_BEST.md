@@ -74,3 +74,18 @@ The next candidates therefore keep BMQ3KGM's human and change only the objects:
 (at most 2e-7) and its motion-head output exactly (scored joints within 0.0002 mm). After the contact stage, repeated
 runs of the existing contact solver differ by 0.07 mm on average in the scored joints, with a few hand and arm frames
 up to several centimetres. That variation comes from the solver itself; this change does not introduce it.
+
+### Kaggle 2026-10-28, candidates that keep BMQ3KGM's human (commit 321e50d)
+
+| File | CD-H | CD-O | ACC-H | ACC-O | PEN |
+|---|---|---|---|---|---|
+| BMQ3KGMR (+ module v1) | 14.36408 | 19.07004 | 0.13628 | 0.07056 | 0.00016 |
+| BMQ3KGMk (α-0 object calibration) | 14.35430 | 18.68588 | 0.13629 | 0.07066 | 0.00013 |
+| BMQ3KGMkR (both) | 14.37471 | 19.17272 | 0.13629 | 0.07055 | 0.00014 |
+
+**Module v1 does not transfer on CD-O**, although it improves ACC-O.
+
+**The α-0 object calibration alone does nothing.** So BMQ3KGMa0's CD-O gain came from its human: the scorer places
+the objects through a similarity fitted on our human at the first scored frame.
+
+The next candidate is **BMQ3KGMR2**: BMQ3KGM plus module version 2 (`REL_V2=1`, see `pipeline/recipes/rel.md`).

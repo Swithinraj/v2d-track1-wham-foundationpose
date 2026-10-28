@@ -9,13 +9,14 @@
 #   IN: the motion head's input (BMQ3-K pre-contact human + objects); needs submissions/episodes_bm_depth and
 #   outputs/mask_visibility_bm from the same build. BM_ROOT (default ${TRACK1_ROOT}/work/bm_root): the body-mode root whose
 #   outputs/sam3d_body holds IN's depth scale. REL_SIGMA (default 20). OBJ_PYTHON: numpy, PIL, OpenCV (as bmq_final.sh).
+#   REL_V2=1 REL_MODEL=config/rel_module_v2/rel_best.pt: module v2 (visibility-gated overlay cues, rel.md)
 source "$(dirname "${BASH_SOURCE[0]}")/../env.sh"
 cd "${TRACK1_ROOT}"
 IN="$1"; OUT="$2"; S="${TRACK1_ROOT}/submissions"; KP=outputs/kp2d_vpx; W="work/rel/${OUT}"; P=rel; PY="${OBJ_PYTHON:-${VENV_PYTHON}}"
 BM="$(cd "${BM_ROOT:-${TRACK1_ROOT}/work/bm_root}" && pwd)"
 for d in "${S}/${IN}" "${S}/episodes_bm_depth" "${TRACK1_ROOT}/outputs/mask_visibility_bm"; do require_file "${d}/episode_000029.npz" "build the base candidate first"; done
 require_file "${BM}/outputs/sam3d_body/episode_000029/prepare.npz" "body-mode root (bmq_final.sh)"
-require_file "${TRACK1_ROOT}/config/rel_module/rel_best.pt"
+RM="${REL_MODEL:-config/rel_module/rel_best.pt}"; require_file "${TRACK1_ROOT}/${RM}"     # REL_V2=1 REL_MODEL=config/rel_module_v2/rel_best.pt: v2
 if [[ "${BM}" == "${TRACK1_ROOT}"* ]]; then CSR="/track1${BM#"${TRACK1_ROOT}"}"; else
   CSR="${BM}"; bound=""; for b in ${TRACK1_EXTRA_BINDS:-}; do [[ "${BM}" == "${b}"* ]] && bound=y; done
   [[ -n "${bound}" ]] || { echo "BM_ROOT ${BM} is not inside TRACK1_ROOT or TRACK1_EXTRA_BINDS" >&2; exit 3; }
@@ -26,10 +27,10 @@ in_container mhr_converter.sif python -u /track1/scripts/rel_deploy_prep.py "/tr
 "${PY}" scripts/moge_lock.py --root . --joints "${W}/human" --prefix "${P}" --out "${W}/lock" --scale_root "${BM}"
 "${PY}" scripts/depth_cues.py --joints "${W}/human" --prefix "${P}" --root . --scale_root "${BM}" --out "${W}/cues"
 "${PY}" scripts/rel_cache.py --root . --mode bm --prefix "${P}" --out "${W}/rel" --no_vda --deploy \
-  --dirs "human=${W}/human,object=${W}/object,visual=${W}/visual,cues=${W}/cues,lock=${W}/lock"
+  --dirs "human=${W}/human,object=${W}/object,visual=${W}/visual,cues=${W}/cues,lock=${W}/lock" ${REL_V2:+--v2}
 # 2. per-frame corrections, smoothed again
 in_container mhr_converter.sif python -u /track1/scripts/rel_train.py --cache "/track1/${W}/rel" --val "${P}" \
-  --eval_only /track1/config/rel_module/rel_best.pt --out "/track1/${W}" --dump "/track1/${W}/dump" --deploy
+  --eval_only "/track1/${RM}" --out "/track1/${W}" --dump "/track1/${W}/dump" --deploy
 "${PY}" scripts/rel_smooth.py "${W}/dump" --sigma "${REL_SIGMA:-20}"
 # 3. motion head with the module's corrections (depth head off) + contact stage w_pen 4e6 (as gru_depth_final.sh)
 G="${OUT}_gd"; rm -rf "${S:?}/${G}_in"

@@ -78,3 +78,36 @@ TREND_ALPHA=0 bash pipeline/recipes/trend_final.sh episodes_cand_BMQ3KGMa0     #
 bash pipeline/recipes/rel_final.sh episodes_bmq3k_in episodes_cand_BMQ3KGMa0R
 bash pipeline/stages/pack.sh                                                    # with the candidate directory as the episodes input
 ```
+
+## Version 2: overlay cues computed on visible parts (`REL_V2=1`, `config/rel_module_v2/rel_best.pt`)
+
+Version 2 adds the overlay scale, meaning how large our reconstruction appears in the image compared with the image
+evidence. It is computed only from parts that are visible:
+
+- **Human.** Our projected bone lengths over ViTPose's. Only bones count whose two joints are both confidently detected
+  by ViTPose and visible in the person mask. The gate also receives the number of such bones and the visible share of
+  the body.
+- **Object.** The observed mask area against our silhouette minus the part covered by the person mask. The gate also
+  receives the object's visible share.
+
+Each cue is given raw and smoothed over time (σ 30 frames).
+
+Two training changes:
+
+- The synthetic distance shifts now move every overlay feature consistently. This also fixes a sign error in version 1:
+  moving an object farther away makes its "observed / projected size" larger, not smaller.
+- The uncertainty term is computed on the correction that is actually applied.
+
+Results on the production pipeline (BMQ3KGM, trend α 0.75), at the scored output, compared with the same pipeline
+without the module:
+
+| FORM-HOI group | CD-O | ACC-O | CD-H, ACC-H, PEN |
+|---|---|---|---|
+| T3 (validation) | −4.78 | −0.00008 | ≈0, 0, +0.00001 |
+| U1 | −2.64 | −0.00016 | ≈0 |
+| C | −1.57 | −0.00040 | ≈0 |
+| U2 | −1.52 | −0.00015 | ≈0 |
+
+Version 2 harms 4–5 % of frames on the depth proxy, against 16–17 % for version 1.
+
+On Kaggle, version 1 (BMQ3KGMR) improved ACC-O but made CD-O worse, by +0.47.

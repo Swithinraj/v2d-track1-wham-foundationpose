@@ -49,6 +49,26 @@ HN = ["h_moge", "h_vda", "h_dis", "h_valid", "h_occ", "h_border", "h_kp", "h_kpc
       "h_vr", "h_vlat", "h_ar"]
 ON = ["o_moge", "o_vda", "o_dis", "o_spread_m", "o_spread_v", "o_size", "o_iou", "o_mask", "o_occ", "o_fpjump", "o_vr", "o_vlat",
       "o_ar", "contact"]
+# --v2 (10-28, owner: per-frame overlay scale, gated): the overlay cues also smoothed over time (sigma 30 frames, NaN-aware),
+# anchor-relative, plus the human's absolute (unanchored) overlay scale. Appended after the v1 columns.
+# Owner: the gate must know WHICH PART of the mesh is visible, so the overlay cues are also computed from visible parts only:
+#   h_size_vis  log(our projected / ViTPose bone length), median over the 12 bones whose both joints are ViTPose-confident
+#               (> 0.5) AND visible in the person mask (outputs/mask_visibility_*), + h_nvis (share of such bones),
+#               h_vis_frac (share of the 22 scored joints visible)
+#   o_sil_vis   log(sqrt(SAM 2 object mask area) / sqrt(our silhouette minus the person mask)): the EXPECTED visible
+#               area of our mesh vs the observed one (hand / body occlusion removed), + o_visfrac (visible share)
+V2 = False
+HN2 = HN + ["h_size_sm", "h_size_abs", "h_size_vis", "h_size_vis_sm", "h_nvis", "h_vis_frac"]
+ON2 = ON + ["o_size_sm", "o_sil_vis", "o_sil_vis_sm", "o_visfrac"]
+SC_MHR = [1, 2, 18, 35, 3, 19, 36, 4, 20, 37, 8, 24, 110, 74, 38, 113, 75, 39, 76, 40, 78, 42]     # MHR joint of each scored joint
+BONES = [(16, 18), (18, 20), (17, 19), (19, 21), (1, 4), (4, 7), (2, 5), (5, 8), (16, 17), (1, 2), (16, 1), (17, 2)]
+
+
+def nsmooth(x, sigma=30.0):
+    k = int(3 * sigma); g = np.exp(-0.5 * (np.arange(-k, k + 1) / sigma) ** 2)
+    m = np.isfinite(x).astype(float); xv = np.where(np.isfinite(x), x, 0.0)
+    num = np.convolve(np.pad(xv, k, mode="edge"), g, mode="valid"); den = np.convolve(np.pad(m, k, mode="edge"), g, mode="valid")
+    out = num / np.maximum(den, 1e-9); out[den < 0.2] = np.nan; return out
 
 
 def depth_m(p):
@@ -96,7 +116,8 @@ def episode(args):
     Pg = P if DEPLOY else float(oc["gt_s"]) * np.einsum("tij,nj->tni", oc["gt_R"][:T].astype(np.float64), oc["surf_gt"].astype(np.float64)) + oc["gt_t"][:T, None]
     hands = hc["hands_ours"].astype(np.float64)[:T]
     obj_dir = root / "outputs/object" / tag; per_dir = root / "outputs/person" / tag
-    raw = {k: np.full(T, np.nan) for k in ("h_moge", "h_vda", "o_moge", "o_vda", "o_sm", "o_sv", "o_size", "o_iou", "o_occ")}
+    raw = {k: np.full(T, np.nan) for k in ("h_moge", "h_vda", "o_moge", "o_vda", "o_sm", "o_sv", "o_size", "o_iou", "o_occ",
+                                           "o_sil_vis", "o_visfrac")}
     hv, ho, hb, okm = np.zeros(T), np.zeros(T), np.zeros(T), np.zeros(T)
     for f in range(T):
         Dm = depth_m(obj_dir / "depth" / f"{f:06d}.png")
@@ -134,6 +155,14 @@ def episode(args):
             g[(pv_[ok] / 8).astype(int), (pu[ok] / 8).astype(int)] = True; g = cv2.dilate(g.astype(np.uint8), np.ones((3, 3), np.uint8)) > 0
             ms = mo[::8, ::8]; hh, ww = min(g.shape[0], ms.shape[0]), min(g.shape[1], ms.shape[1]); g, ms = g[:hh, :ww], ms[:hh, :ww]
             raw["o_iou"][f] = (g & ms).sum() / max((g | ms).sum(), 1); raw["o_occ"][f] = (mo & mp).sum() / mo.sum()
+            if V2 and (P[f, :, 2] > 0.05).all():                                     # expected VISIBLE silhouette (person mask removed)
+                S4 = np.zeros((H // 4 + 1, W // 4 + 1), np.uint8)
+                hull = cv2.convexHull((np.stack([pu, pv_], 1) / 4.0).astype(np.float32)).astype(np.int32)
+                cv2.fillConvexPoly(S4, hull, 1); S4 = S4.astype(bool)
+                mo4, mp4 = mo[::4, ::4], mp[::4, ::4]; hh, ww = min(S4.shape[0], mo4.shape[0]), min(S4.shape[1], mo4.shape[1])
+                S4, mo4, mp4 = S4[:hh, :ww], mo4[:hh, :ww], mp4[:hh, :ww]; ve = S4 & ~mp4
+                if ve.sum() > 20 and mo4.sum() > 5:
+                    raw["o_sil_vis"][f] = np.log(np.sqrt(mo4.sum()) / np.sqrt(ve.sum())); raw["o_visfrac"][f] = ve.sum() / max(S4.sum(), 1)
     if no_vda:
         for k in ("h_vda", "o_vda", "o_sv"):
             raw[k][:] = np.nan
@@ -170,8 +199,31 @@ def episode(args):
     valid_o = gv & np.isfinite(tgt_o) & (okm > 0)
     if DEPLOY:                                                                         # no GT: targets unknown
         tgt_h[:] = np.nan; tgt_o[:] = np.nan; err_h[:] = np.nan; err_o[:] = np.nan; valid_h[:] = False; valid_o[:] = False
-    np.savez_compressed(out / f"{pref}_{tag}.npz", fh=np.stack([fh[k] for k in HN], 1).astype(np.float32),
-                        fo=np.stack([fo[k] for k in ON], 1).astype(np.float32), h_names=np.array(HN), o_names=np.array(ON),
+    hn, on = HN, ON
+    if V2:
+        cabs = cz["c_size"][:T].astype(np.float64) if cz is not None and "c_size" in cz.files else np.full(T, np.nan)
+        fh["h_size_sm"] = anchored(nsmooth(cabs), a); fh["h_size_abs"] = cabs
+        vf = root / "outputs" / ("mask_visibility_bm" if mode == "bm" else "mask_visibility_vp") / f"{tag}.npz"
+        vis = np.load(vf)["vis"].astype(np.float64) if vf.exists() else None
+        hsv, nv, vfr = np.full(T, np.nan), np.full(T, np.nan), np.full(T, np.nan)
+        if vis is not None:
+            for f in range(min(T, len(vis))):
+                pj = ours[f]; pu, pv_ = pj[:, 0] / pj[:, 2], pj[:, 1] / pj[:, 2]; r = []
+                for i, j in BONES:
+                    mi, mj = SC2MP[i], SC2MP[j]
+                    if kpc[f, mi] > 0.5 and kpc[f, mj] > 0.5 and vis[f, SC_MHR[i]] > 0.5 and vis[f, SC_MHR[j]] > 0.5:
+                        lv = np.hypot(kp[f, mi, 0] - kp[f, mj, 0], kp[f, mi, 1] - kp[f, mj, 1])
+                        if lv > 1e-4:
+                            r.append(np.hypot(pu[i] - pu[j], pv_[i] - pv_[j]) / lv)
+                nv[f] = len(r) / len(BONES); vfr[f] = np.mean(vis[f, SC_MHR] > 0.5)
+                if len(r) >= 3:
+                    hsv[f] = np.log(np.median(r))
+        fh["h_size_vis"] = anchored(hsv, a); fh["h_size_vis_sm"] = anchored(nsmooth(hsv), a); fh["h_nvis"] = nv; fh["h_vis_frac"] = vfr
+        fo["o_size_sm"] = anchored(nsmooth(raw["o_size"]), a)
+        fo["o_sil_vis"] = anchored(raw["o_sil_vis"], a); fo["o_sil_vis_sm"] = anchored(nsmooth(raw["o_sil_vis"]), a)
+        fo["o_visfrac"] = raw["o_visfrac"]; hn, on = HN2, ON2
+    np.savez_compressed(out / f"{pref}_{tag}.npz", fh=np.stack([fh[k] for k in hn], 1).astype(np.float32),
+                        fo=np.stack([fo[k] for k in on], 1).astype(np.float32), h_names=np.array(hn), o_names=np.array(on),
                         tgt_h=tgt_h.astype(np.float32), tgt_o=tgt_o.astype(np.float32), err_h=err_h.astype(np.float32),
                         err_o=err_o.astype(np.float32), valid_h=valid_h, valid_o=valid_o, anchor=a,
                         raw_h_moge=raw["h_moge"].astype(np.float32), raw_h_vda=raw["h_vda"].astype(np.float32),
@@ -187,10 +239,11 @@ def main():
     ap.add_argument("--prefix", required=True); ap.add_argument("--out", type=Path, required=True); ap.add_argument("--workers", type=int, default=16)
     ap.add_argument("--no_vda", action="store_true", help="MoGe-only features (VDA columns NaN; roots without VDA maps)")
     ap.add_argument("--deploy", action="store_true", help="episodes without GT (targets NaN)")
+    ap.add_argument("--v2", action="store_true", help="add the overlay cues: smoothed, visible-part (h_size_*, o_size_sm, o_sil_vis*, visibility)")
     ap.add_argument("--dirs", help="human=DIR,object=DIR,visual=DIR,cues=DIR,lock=DIR (deployment caches instead of FORMHOI_DIR)")
     a = ap.parse_args(); a.out.mkdir(parents=True, exist_ok=True)
-    global DIRS, DEPLOY
-    DEPLOY = a.deploy
+    global DIRS, DEPLOY, V2
+    DEPLOY = a.deploy; V2 = a.v2
     if a.dirs:
         DIRS = {k: Path(v) for k, v in (x.split("=", 1) for x in a.dirs.split(","))}
     hdir = DIRS["human"] if DIRS else F / ("joint_cache/human" if a.mode == "full" else "joint_cache_bm/human")

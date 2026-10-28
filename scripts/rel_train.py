@@ -69,15 +69,21 @@ def corrupt(e, rng):
     """-> (fh, fo, tgt_h, tgt_o) with one of the targeted failure modes applied consistently."""
     fh, fo, th, to = e["fh"].astype(np.float64).copy(), e["fo"].astype(np.float64).copy(), e["tgt_h"].astype(np.float64).copy(), e["tgt_o"].astype(np.float64).copy()
     T, a = len(th), int(e["anchor"]); mode = rng.choice(["none", "ours_h", "ours_o", "both", "src_bias", "occ"], p=[0.3, 0.15, 0.15, 0.1, 0.2, 0.1])
+    hn = [str(x) for x in e["h_names"]] if "h_names" in e else []; on = [str(x) for x in e["o_names"]] if "o_names" in e else []
     if mode in ("ours_h", "both"):
         d = smooth_noise(T, rng.uniform(0, 0.05), rng, rng.uniform(20, 120)); d -= d[a]
-        for c in ("h_moge", "h_vda", "c_size"):
-            fh[:, SH[c]] -= d
+        # our distance up by d: every "source / ours" log ratio and every "our projected size / observed size" ratio goes down
+        for c in ("h_moge", "h_vda", "c_size", "h_size_sm", "h_size_abs", "h_size_vis", "h_size_vis_sm"):
+            if c in hn or (not hn and c in SH):
+                fh[:, hn.index(c) if hn else SH[c]] -= d
         fh[:, SH["h_vr"]] += np.gradient(d); fh[:, SH["h_ar"]] += np.gradient(np.gradient(d)); th -= d
     if mode in ("ours_o", "both"):
         d = smooth_noise(T, rng.uniform(0, 0.15), rng, rng.uniform(20, 120)); d -= d[a]
-        for c in ("o_moge", "o_vda", "o_size"):
-            fo[:, SO[c]] -= d
+        for c in ("o_moge", "o_vda"):                                  # "source depth / ours": down
+            fo[:, on.index(c) if on else SO[c]] -= d
+        for c in ("o_size", "o_size_sm", "o_sil_vis", "o_sil_vis_sm"):  # "observed size / our projected size": UP (v1 had the sign wrong)
+            if c in on or (not on and c in SO):
+                fo[:, on.index(c) if on else SO[c]] += d
         fo[:, SO["o_vr"]] += np.gradient(d); fo[:, SO["o_ar"]] += np.gradient(np.gradient(d)); to -= d
     if mode == "src_bias":
         src = rng.integers(2); b = smooth_noise(T, rng.uniform(0.01, 0.08), rng, rng.uniform(30, 200)) if rng.random() < 0.6 \
@@ -143,7 +149,7 @@ def branch_loss(delta, gate, logs, tgt, valid, ramp):
     hub = torch.where(r.abs() < 0.02, 0.5 * r ** 2 / 0.02, r.abs() - 0.01)
     harm = torch.relu(r.abs() - tgt.abs())
     acc = (c[:, 2:] - 2 * c[:, 1:-1] + c[:, :-2] - (tgt[:, 2:] - 2 * tgt[:, 1:-1] + tgt[:, :-2])).abs()
-    nll = 0.5 * ((tgt - delta) / logs.exp()) ** 2 + logs
+    nll = 0.5 * ((tgt - c) / logs.exp()) ** 2 + logs                     # uncertainty of the APPLIED correction (review 10-28)
     n = v.sum().clamp_min(1)
     return ((hub + W_HARM * harm + W_NLL * nll) * v).sum() / n + W_ACC * (acc * v[:, 1:-1]).sum() / n, c
 
