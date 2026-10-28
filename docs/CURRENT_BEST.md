@@ -25,17 +25,31 @@ bash pipeline/stages/pack.sh                  # with the candidate directory as 
 The common-translation selector (`gru_shift_final.sh`) is kept in the repository but does not beat BMQ3KGM: on Kaggle it
 was CD-H +0.058 and CD-O −0.021, and on two untouched FORM-HOI groups its effect is near zero.
 
-## Under evaluation: Video Depth Anything instead of MoGe-2
+## Candidate submitted for scoring: BMQ3KGMa0 (depth trend off)
 
-Video Depth Anything (metric, Large) as the only depth source of every stage, with no re-tuning. On a held-out FORM-HOI
-group, full-mode pre-contact chain against the multi-view ground truth:
+BMQ3KGMa0 is BMQ3KGM with one change: the human depth trend is switched off (`TREND_ALPHA=0`, see
+`pipeline/recipes/trend.md`), and the objects are re-expressed for the changed full-mode human through the gravity
+kappa. On four FORM-HOI groups, scored against multi-view ground truth at the scored output, the change gives
+CD-H −0.73 and CD-O −0.96 on average. ACC-H, ACC-O and PEN are unchanged. The Kaggle values will be added once scored.
 
-| | CD-H | CD-O | ACC-H | ACC-O | PEN |
-|---|---|---|---|---|---|
-| MoGe-2 | 12.57 | 38.45 | 0.13312 | 0.07354 | 0.00420 |
-| VDA | 14.11 | 48.52 | 0.13358 | 0.07286 | 0.00254 |
+```
+bash pipeline/recipes/bmq_final.sh                                   # body-mode SAM 3D Body (BM_ROOT)
+TREND_ALPHA=0 bash pipeline/recipes/trend_final.sh episodes_cand_BMQ3KGMa0
+bash pipeline/stages/pack.sh                                         # with the candidate directory as the episodes input
+```
 
-Several stages were tuned around MoGe-2: the depth-trend strength, the floor / kappa correction, the shared object mesh
-scale, and the learned motion head's cues. VDA's absolute scale varies about ±12 % between videos, while MoGe-2's is
-nearly constant, and VDA's per-frame depth at the person fluctuates more. The VDA path is being re-tuned on a validation
-group. It is not part of any submission.
+`scripts/gru_depth_refit.py` now builds its per-vertex band fusion in vertex chunks. The filters act along time per
+vertex, so the output is unchanged: at most 0.0002 mm against the unchunked code on the same GPU. The change lets the
+step run on 16 GB GPUs.
+
+## Video Depth Anything: not adopted
+
+Video Depth Anything (metric, Large) was tested in three ways:
+
+1. **As the only depth source**, re-tuned. The human is slightly better, but the objects are worse by about 25 CD-O,
+   because FoundationPose tracks worse on VDA depth.
+2. **For the human depth trend only** (`trend.md`, BMQ3KGMh). Better on the validation group, worse on the held-out
+   groups.
+3. **Against sensor depth.** VDA follows the true change in the person's distance less well than MoGe-2.
+
+None of these is part of a submission.

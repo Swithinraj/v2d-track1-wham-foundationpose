@@ -118,14 +118,18 @@ def main():
         coef = base.to(dev).view(1, 1, 2, 2, G.NB).expand(T, G.NREG, 2, 2, G.NB).clone()
         coef[..., :4] += corr
         coef = coef.double()
-        # per-vertex fusion in mm with each vertex's region coefficients
-        BO, BR = G.bands(V_in), G.bands(V_raw)                                                 # [NB, T, V, 3]
-        cv = coef[:, vreg]                                                                    # [T, V, 2, 2, NB]
-        delta = torch.zeros_like(V_in)
-        for b in range(G.NB):
-            for a in range(2):
-                sel = (lambda x: x - (x @ z)[..., None] * z) if a == 0 else (lambda x: (x @ z)[..., None] * z)
-                delta += (cv[..., a, 0, b] - 1.0)[..., None] * sel(BO[b]) + cv[..., a, 1, b][..., None] * sel(BR[b])
+        # per-vertex fusion in mm with each vertex's region coefficients, in vertex chunks (the band filters run along time
+        # per vertex, so chunking gives the same result; it keeps long episodes inside a 16 GB GPU)
+        delta = torch.zeros_like(V_in); VC = int(os.environ.get("REFIT_VCHUNK", "4096")) or V_in.shape[1]
+        for v0 in range(0, V_in.shape[1], VC):
+            vs = slice(v0, v0 + VC)
+            BO, BR = G.bands(V_in[:, vs]), G.bands(V_raw[:, vs])                                # [NB, T, v, 3]
+            cv = coef[:, vreg[vs]]                                                            # [T, v, 2, 2, NB]
+            for b in range(G.NB):
+                for a in range(2):
+                    sel = (lambda x: x - (x @ z)[..., None] * z) if a == 0 else (lambda x: (x @ z)[..., None] * z)
+                    delta[:, vs] += (cv[..., a, 0, b] - 1.0)[..., None] * sel(BO[b]) + cv[..., a, 1, b][..., None] * sel(BR[b])
+            del BO, BR, cv
         shift = (ramp_d * eps)[:, None] * (J_in[:, SC].mean(1) * 1000.0)                      # mm, along the ray through our centroid
         X = V_in + ramp[:, None, None] * delta + shift[:, None, :]
         pose1, err = lm_pose(mhr, X.reshape(T, -1), p_in.clone(), ident, iters=6)
