@@ -10,6 +10,8 @@
 #   HUMAN   episodes whose human is solved (identity and pose)
 #   OBJECTS episodes whose object poses, scale and meshes are used (copied into OUTPUT unchanged)
 #   CONTACT_ARGS overrides the solver settings (default: the settings of candidate IPf30).
+#   CONTACT_ALIGNMENT_DIR: the camera alignments the image term projects with (default outputs/alignment_sam;
+#   outputs/alignment_measured for the measured rig camera, pipeline/recipes/truecam_final.sh).
 #   CONTACT_STATES=1 first computes the offline interaction states (free / contact / grasp per hand and frame,
 #   scripts/interaction_states.py on the input human's MHR bodies) and passes them to the solver (--states_dir).
 source "$(dirname "${BASH_SOURCE[0]}")/../env.sh"
@@ -24,7 +26,8 @@ if [[ "${CONTACT_STATES:-0}" == 1 ]]; then
     "${TRACK1_ROOT}/${W}/bodies" "${TRACK1_ROOT}/outputs/contact_sdf/${OBJECTS}"
   ARGS="${ARGS} --states_dir /track1/${W}/states"
 fi
-in_container mhr_converter.sif python -u /track1/scripts/human_contact_solver.py --human "/track1/submissions/${HUMAN}" \
+in_container mhr_converter.sif CONTACT_ALIGNMENT_DIR="${CONTACT_ALIGNMENT_DIR:-outputs/alignment_sam}" \
+  python -u /track1/scripts/human_contact_solver.py --human "/track1/submissions/${HUMAN}" \
   --objects "/track1/submissions/${OBJECTS}" --out "/track1/submissions/${OUT}" --sdf "/track1/outputs/contact_sdf/${OBJECTS}" \
   --episodes $(seq -s ' ' 0 29) ${ARGS}
 echo "PASS: contact solve ${HUMAN} + objects of ${OBJECTS} -> ${OUT}"

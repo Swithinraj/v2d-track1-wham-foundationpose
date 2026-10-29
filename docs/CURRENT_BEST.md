@@ -1,7 +1,7 @@
 # Current best submission (2026-10-27)
 
 **BMQ3KGM** is the best single file on every Track 1 board: built from commit `f60f8a6`. Its recipes are unchanged in
-this commit.
+this commit. Everything tried so far, with results, is in `docs/EXPERIMENT_REPORT.md`.
 
 | File | CD-H | CD-O | ACC-H | ACC-O | PEN | Rank sum (single file, 10-25 board) |
 |---|---|---|---|---|---|---|
@@ -24,6 +24,20 @@ bash pipeline/stages/pack.sh                  # with the candidate directory as 
 
 The common-translation selector (`gru_shift_final.sh`) is kept in the repository but does not beat BMQ3KGM: on Kaggle it
 was CD-H +0.058 and CD-O −0.021, and on two untouched FORM-HOI groups its effect is near zero.
+
+## Candidate: BMQ3KGMtp (BMQ3KGM on the measured rig camera)
+
+Every stage used MoGe-2's camera. Its principal point is the image centre, while the rig's real principal point lies
+about 54 / 38 px away (4.3°). BMQ3KGMtp re-expresses BMQ3KGM's pre-contact output in the measured camera, then runs the
+same contact stage (`pipeline/recipes/truecam.md`).
+
+On four held-out FORM-HOI groups this gives CD-H −1.04 on average (−1.46, −0.77, −0.91, −1.00; better in 18-24 of 30
+episodes per group). The other four metrics are unchanged within noise: CD-O +0.08, ACC-H +0.00003, ACC-O +0.00004,
+PEN ≈0.
+
+```
+bash pipeline/recipes/truecam_final.sh episodes_cand_BMQ3KGM_in episodes_cand_BMQ3KGMtp   # after the BMQ3KGM recipes
+```
 
 ## Candidate submitted for scoring: BMQ3KGMa0 (depth trend off)
 

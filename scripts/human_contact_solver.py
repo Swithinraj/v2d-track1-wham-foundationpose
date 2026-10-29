@@ -165,7 +165,8 @@ def episode(ep, args, body, hsets):
                     windows.append((k, f, g2, touch, stable))
             f = g2
     # MediaPipe 2-D targets (actor by nearest body landmarks), projection
-    a = json.loads((T1 / f"outputs/alignment_sam/{tag}/alignment.json").read_text()); K, ds = a["intrinsics"], float(a["depth_scale"])
+    adir = os.environ.get("CONTACT_ALIGNMENT_DIR") or "outputs/alignment_sam"          # truecam_final.sh: the measured camera
+    a = json.loads((T1 / adir / tag / "alignment.json").read_text()); K, ds = a["intrinsics"], float(a["depth_scale"])
     mpz = np.load(T1 / args.kp2d_dir / f"{tag}.npz"); mp, mh, ms = mpz["pose"], mpz["hands"], mpz["hand_score"]
 
     def proj(J):
