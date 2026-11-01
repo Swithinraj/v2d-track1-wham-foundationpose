@@ -94,3 +94,24 @@ def test_anchor_may_borrow_contact_from_nearby_frames_when_allowed():
     delta,report=solve(feet,ray,n,c,a,anchor_window=3)
     assert report['accepted']
     np.testing.assert_array_equal(delta[a],[0,0,0])
+
+
+def test_full_trust_is_the_plain_correction():
+    feet,ray,n,c,a,drift=example()
+    plain,_=solve(feet,ray,n,c,a)
+    same,_=solve(feet,ray,n,c,a,anchor_trust=1.)
+    np.testing.assert_array_equal(plain,same)
+
+
+def test_no_trust_references_the_median_height_and_the_anchor_stays():
+    feet,ray,n,c,a,drift=example()
+    # The anchor alone sits 5 cm high; every other frame agrees.
+    feet=np.broadcast_to([[-.1,1.,3.],[.1,1.,3.]],feet.shape).copy()
+    feet[a-20:a+21,:,1]-=.05
+    trusting,_=solve(feet,ray,n,c,a,anchor_trust=1.)
+    blind,_=solve(feet,ray,n,c,a,anchor_trust=0.)
+    np.testing.assert_array_equal(blind[a],[0,0,0])
+    far=len(feet)-1
+    assert np.linalg.norm(blind[far])<.01                 # far frames already agree with the median: almost no slide
+    assert np.linalg.norm(trusting[far])>.2               # trusting that anchor drags them all
+    np.testing.assert_array_equal(trusting[a],[0,0,0])

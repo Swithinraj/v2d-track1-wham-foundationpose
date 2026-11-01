@@ -5,7 +5,7 @@ P=.venvs/submission/bin/python; S=submissions; A=work/analysis; PM=outputs/floor
 variant() {  # NAME BETA LAM [OTHER WEIGHT]...  (root mixes add up: each is measured against the same base meshes)
   local n=$1 b=$2 l=$3 src next k=0; shift 3
   rm -rf $S/episodes_person_$n $S/episodes_personm${n}_* $S/episodes_cand_$n
-  $P scripts/floor_root.py --input $S/episodes_cand_Mtp_in --bodies $A/bodies_Mtp_in --planes $PM --out $S/episodes_person_$n --lam $l --beta $b 2>&1 | tail -1 | cut -c1-80
+  $P scripts/floor_root.py --input $S/episodes_cand_Mtp_in --bodies $A/bodies_Mtp_in --planes $PM --out $S/episodes_person_$n --lam $l --beta $b --anchor_trust ${TRUST:-1} 2>&1 | tail -1 | cut -c1-80
   src=$S/episodes_person_$n
   while (( $# >= 2 )); do
     next=$S/episodes_personm${n}_$k

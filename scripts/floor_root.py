@@ -31,6 +31,7 @@ FLIP = np.array([1.0, -1.0, -1.0])     # MHR root translation axes vs the Track 
 ENVELOPE_FRAMES = 15                   # half window of the lower envelope: every stride touches the floor within it
 FOOT_NEAR = 0.03                       # m above the lower envelope
 FOOT_STILL = 0.012                     # m per frame
+TRUST_RAMP = 30.                       # frames over which a blended reference height ramps in around the anchor
 
 
 def whittaker(values, weights, lam):
@@ -48,12 +49,16 @@ def whittaker(values, weights, lam):
 
 
 def floor_root_shift(feet, ray, normal, confidence, anchor, *, lam=1e3, max_shift=.4, min_coverage=.2,
-                     min_incidence=.1, anchor_window=0):
+                     min_incidence=.1, anchor_window=0, anchor_trust=1.):
     """Per-frame body displacement [T,3] that keeps stance feet at the anchor's floor height, and a report.
 
     feet [T,K,3] lowest point per foot, ray [T,3] unit slide direction, normal [3] floor normal, confidence [T,K] stance
     evidence (0 = not on the floor), anchor the first scored frame. The anchor's displacement is exactly zero. An
     unsupported or implausible correction is rejected, never clipped, and returns zeros.
+
+    anchor_trust below 1 blends the reference height toward the episode's median stance height, because noise in one
+    frame's height otherwise shifts every other frame. The anchor still does not move: the difference ramps in over
+    TRUST_RAMP frames on either side of it.
     """
     feet, ray, normal, confidence = (np.asarray(a, float) for a in (feet, ray, normal, confidence))
     if feet.ndim != 3 or feet.shape[2] != 3 or ray.shape != (len(feet), 3) or confidence.shape != feet.shape[:2]:
@@ -86,6 +91,10 @@ def floor_root_shift(feet, ray, normal, confidence, anchor, *, lam=1e3, max_shif
     reference = measured[weights > 0].mean()
     smooth = whittaker(np.where(weights > 0, measured - reference, 0.), weights, lam)
     slide = (smooth[anchor] - smooth) / incidence
+    if anchor_trust != 1.:
+        stance_level = np.median(smooth[weights > 0])
+        ramp = np.minimum(np.abs(np.arange(T) - anchor) / TRUST_RAMP, 1.)
+        slide += ramp * (1. - anchor_trust) * (stance_level - smooth[anchor]) / incidence
     slide[anchor] = 0.
     report["translation_max_m"] = float(np.abs(slide).max())
     report["translation_rms_m"] = float(np.sqrt((slide ** 2).mean()))
@@ -136,6 +145,7 @@ def main():
     parser.add_argument("--scored", type=Path, default=Path("outputs/hand_fix/episodes_repro_depth_refine_meshes/scored_frames.json"))
     parser.add_argument("--lam", type=float, default=1e4)
     parser.add_argument("--beta", type=float, default=1.0, help="fraction of the correction applied")
+    parser.add_argument("--anchor_trust", type=float, default=1.0, help="weight of the anchor's height against the median stance height")
     args = parser.parse_args()
     if args.out.exists():
         raise SystemExit(f"{args.out} exists; refusing to overwrite an episode directory")
@@ -156,7 +166,8 @@ def main():
         ray = foot / np.linalg.norm(foot, axis=1, keepdims=True)
         # Coverage counts scored frames: unscored ones carry no evidence by construction.
         delta, entry = floor_root_shift(points, ray, normal, confidence, int(frames[0]), lam=args.lam,
-                                        min_coverage=.2 * len(frames) / len(points), anchor_window=ENVELOPE_FRAMES)
+                                        min_coverage=.2 * len(frames) / len(points), anchor_window=ENVELOPE_FRAMES,
+                                        anchor_trust=args.anchor_trust)
         report[tag] = entry
         if not entry["accepted"]:
             print(tag, json.dumps(entry), flush=True)
