@@ -29,23 +29,35 @@ Two things the scorer does make this useful:
 Because the first scored frame stays fixed, **one file tests two things independently**: the person's change shows in CD-H
 only and the object's change in CD-O only.
 
+## What Kaggle measured
+
+| File (commit 13ff13a) | CD-H | CD-O | ACC-H | ACC-O | PEN |
+|---|---|---|---|---|---|
+| BMQ3KGM (reference, MoGe's camera) | 14.35418 | 18.60437 | 0.13629 | 0.07067 | 0.00013 |
+| MF: camera + person floor slide + object floor scale | **14.08779** | 18.49797 | 0.13637 | 0.07057 | 0.00019 |
+| G97: camera + every object scaled 0.97 | 14.15256 | 22.65556 | 0.13636 | 0.07053 | 0.00016 |
+| WF: camera + WHAM root mix 0.25 + floor objects + table objects 0.974 | 14.74125 | 20.91912 | 0.13632 | 0.07051 | 0.00014 |
+
+- The measured camera gives CD-H -0.20 on the best file, and the person's floor slide a further -0.065.
+- The object floor scale carries real differences between episodes, but moving objects closer **on average is wrong**: 0.97 on
+  everything costs about +4 CD-O, which puts the best global scale near 1.01. A resting level below the person's lowest vertex
+  is therefore not evidence of a mean depth error. The sensitivity is about 1.25 CD-O per 1 % of scale.
+- Objects on tables should stay where they are: 0.974 costs +5.6 CD-O per such episode.
+- Mixing in WHAM's trajectory is rejected: +0.59 CD-H at weight 0.25.
+
 ## What was measured without ground truth
 
 On BMQ3KGM in the measured camera:
 
-- **Objects are too far.** 17 of 30 objects touch the floor, and their resting level sits a median 2-6 cm below the person's
-  floor (physically impossible). The scale that fixes it has median 0.962 and mean 0.974, about 6-15 cm at this distance.
-- **Earlier scored files show the dose.** `nowham` has its objects 5.8 % farther than BMQ3KGM and scores CD-O 24.26 against
-  18.60, about 1 point per 1 %.
-- **The person's floor signal is not confirmed.** The per-frame slide does not agree with apparent body size, an independent
-  image cue (pooled correlation 0.13). A per-episode depth stretch fits about 1.0 from both cues (floor 0.99, size 1.01) and
-  the two do not agree per episode (correlation -0.04). This is why the person's correction is a Kaggle experiment and not
-  an assumed gain. Earlier notes also rejected a hard floor constraint on the grounds that 1 cm of height is 2.4 cm of depth.
-- **Hand contact neither confirms nor refutes the object scale.** For many objects a wide range of scales already touches the
-  hand (`scripts/analysis/kappa_hand.py`).
-- **Existing candidates share their error.** Candidates built on SAM 3D Body differ by about 2 cm per vertex and 1.6 cm in
-  body position, against about 7 cm of real error implied by CD-H (`scripts/analysis/hat.py`). Averaging them can only gain a
-  few tenths. WHAM-based estimates differ by 6-8 cm, hence the `scripts/human_root_mix.py` experiment.
+- 17 of 30 objects touch the floor, and their resting level sits a median 2-6 cm below the person's lowest vertex.
+- Within objects, size constancy across episodes agrees with the floor scale (correlation 0.55, slope 0.62, 15 comparisons,
+  `scripts/analysis/size_constancy.py`).
+- The person's per-frame slide does not agree with apparent body size (pooled correlation 0.13), and a per-episode depth stretch
+  fits about 1.0 from both cues. The slide helped on Kaggle anyway, so this cross-check was not a reliable predictor.
+- Hand contact neither confirms nor refutes the object scale: for many objects a wide range of scales already touches the hand
+  (`scripts/analysis/kappa_hand.py`).
+- Candidates built on SAM 3D Body differ by about 2 cm per vertex and 1.6 cm in body position, against about 7 cm of real error
+  implied by CD-H (`scripts/analysis/hat.py`), so averaging them can only gain a few tenths.
 
 ## Local gates
 

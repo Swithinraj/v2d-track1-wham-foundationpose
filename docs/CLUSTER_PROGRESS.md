@@ -77,3 +77,15 @@ refinement network cuts object error by about 30 % (16.85 to 11.59 on BEHAVE). `
   (mean 0.974), yet are about 2.5 CD-O better per floor episode, so the differences between episodes are real.
 - **Table objects should stay.** 0.974 on the 13 table objects costs +5.6 CD-O per such episode (WF against MF). So the
   size-constancy candidate SC, as built on floor calibration, is not uploaded as it stands.
+
+## Kaggle round 2 (2026-11-01, commit 1280cc0)
+
+| File | CD-H | CD-O | ACC-H | ACC-O | PEN |
+|---|---|---|---|---|---|
+| ML3: camera + person slide lam 3000, objects unchanged | 14.17711 | 19.39916 | 0.13644 | 0.07067 | 0.00013 |
+| FB15: camera + person slide strength 1.5 + object floor scale, 2 cm floor offset | 15.20630 | **17.97125** | 0.13646 | 0.07060 | 0.00012 |
+
+- ML3's objects are unchanged, so **19.40 is the camera-only CD-O**. The object floor scale is worth -0.90 (MF), and the 2 cm offset
+  a further -0.53. The measured camera costs the objects +0.80 against BMQ3KGM, hence `scripts/object_transfer.py`.
+- Person slide strength: 14.153 at 0, 14.088 at 1, 15.206 at 1.5. A parabola puts the best strength near 0.5 and predicts about
+  13.74. Lighter smoothing (lam 3000) is worse than lam 10000.
