@@ -120,3 +120,6 @@ refinement network cuts object error by about 30 % (16.85 to 11.59 on BEHAVE). `
 CD-O is identical to five decimals in all four, which confirms that a person change with the anchor fixed cannot affect it.
 Heavier smoothing of the slide helps (-0.03 at equal strength), a mix toward the trend-off human helps (-0.10), and mixing the
 Oct 31 human's trajectory hurts, though its mesh ensemble helped: that gain came from articulation, not position.
+
+Kaggle's real limit in the final window: 20 uploads per team per UTC day, shared across accounts ("Your team has used its daily
+Submission allowance (20) today"). `swithinraj` also uploads to this team.
