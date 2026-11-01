@@ -62,3 +62,12 @@ def test_mesh_shape_check():
     assert shapes_match([.13, .14, .27], [.145, .163, .302])
     # The paint roller's input mesh is only the head.
     assert not shapes_match([.065, .066, .216], [.134, .234, .333])
+
+
+def test_camera_entries_keep_the_focal_and_take_the_measured_principal_point():
+    from cari4d_camroot import camera_entries
+    old, new = camera_entries(np.array([[804.2, 0, 768], [0, 804.2, 576], [0, 0, 1.]]), dict(fx=999., cx=718.2, cy=529.3))
+    assert old == dict(fx=804.2, fy=804.2, cx=768., cy=576.)
+    assert new == dict(fx=804.2, fy=804.2, cx=718.2, cy=529.3)
+    with pytest.raises(ValueError):
+        camera_entries(np.zeros((3, 3)), dict(cx=1, cy=1))
