@@ -9,7 +9,8 @@ EPISODE="$1"; GPU="$2"; shift 2
 TAG="$(episode_tag "${EPISODE}")"; I="work/cari4d/inputs/${TAG}"; OUT="${CARI4D_OUT:-work/cari4d/out}"
 SIZES="${CARI4D_SIZES:-outputs/floor/object_sizes.json}"; BASE="${CARI4D_BASE:-submissions/episodes_cand_Mtp_in}"
 mkdir -p "${I}" "${OUT}"
-ln -sf "../../../../data/track_1/videos/chunk-000/observation.images.exo_camera/${TAG}.mp4" "${I}/${TAG}.0.color.mp4"
+# A hard link: the pipeline resolves symlinks and then insists on this file name.
+ln -f "data/track_1/videos/chunk-000/observation.images.exo_camera/${TAG}.mp4" "${I}/${TAG}.0.color.mp4"
 read -r FRAMES OBJECT SCALE < <("${VENV_PYTHON}" - "${EPISODE}" "${BASE}/${TAG}.npz" 2>/dev/null <<'PY'
 import json, sys
 import numpy as np
@@ -26,6 +27,9 @@ PY
 [[ -f "${I}/masks_k0.h5" ]] || in_container v2d_cari4d.sif python -m v2d.cari4d.lib.pack_masks \
   --video_path "/track1/${I}/${TAG}.0.color.mp4" --human_masks_path "/track1/outputs/person/${TAG}/sam2_masks/0" \
   --object_masks_path "/track1/outputs/object/${TAG}/sam2_masks/1" --output_path "/track1/${I}/masks_k0.h5"
+# The image was built without git-lfs, so these two assets are only pointers inside it. They come from the same upstream
+# commit, verified by the pointers' sha256 (pipeline/setup/fetch_cari4d_assets.sh).
+export APPTAINER_BIND="${TRACK1_ROOT}/weights/cari4d/lib_mhr_assets:/workspace/v2d_cari4d/lib/cari4d/lib_mhr/assets:ro"
 SYMMETRIC=""; [[ "${OBJECT}" == hula_hoop ]] && SYMMETRIC="--symmetric_object"
 in_container v2d_cari4d.sif CUDA_VISIBLE_DEVICES="${GPU}" python -m v2d.cari4d.lib.run_inference \
   --video_path "/track1/${I}/${TAG}.0.color.mp4" --mask_h5_path "/track1/${I}/masks_k0.h5" \

@@ -114,10 +114,11 @@ def main():
     parser.add_argument("--scored", type=Path, default=Path("outputs/hand_fix/episodes_repro_depth_refine_meshes/scored_frames.json"))
     parser.add_argument("--fixed_kappa", type=float, help="one scale for every object (global experiment)")
     parser.add_argument("--abstain_kappa", type=float, help="scale for objects without floor evidence")
+    parser.add_argument("--floor_offset", type=float, default=0., help="m the real floor lies below the person's lowest vertex")
     args = parser.parse_args()
     planes = json.loads(args.planes.read_text())
     levels = json.loads(args.levels.read_text())
-    floors = {tag: entry["anchor_height_m"] for tag, entry in levels.items() if entry.get("accepted")}
+    floors = {tag: entry["anchor_height_m"] - args.floor_offset for tag, entry in levels.items() if entry.get("accepted")}
     normals = {tag: entry["normal"] for tag, entry in planes.items()}
     report = process_directory(args.input, args.out, normals, floors, json.loads(args.scored.read_text()),
                                fixed_kappa=args.fixed_kappa, abstain_kappa=args.abstain_kappa)

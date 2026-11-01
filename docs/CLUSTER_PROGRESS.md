@@ -56,3 +56,24 @@ every pixel. Within objects this agrees with floor contact (correlation 0.55, sl
 earlier audit set it aside because CoCoNet needs SAM 3D Body decoder buffers. Its full inference pipeline produces those itself.
 The checkpoint (`nvidia/cari4d_commercial`) is trained on 2,126 sequences with MoGe-2 and outputs MHR. In the CARI4D paper the
 refinement network cuts object error by about 30 % (16.85 to 11.59 on BEHAVE). `pipeline/recipes/cari4d_episode.sh` runs it here.
+
+## Kaggle round 1 (2026-11-01 22:00 UTC, commit 13ff13a)
+
+| File | CD-H | CD-O | ACC-H | ACC-O | PEN |
+|---|---|---|---|---|---|
+| BMQ3KGM (reference, in MoGe's camera) | 14.35418 | 18.60437 | 0.13629 | 0.07067 | 0.00013 |
+| MF: camera + person floor slide + object floor scale (17 objects) | **14.08779** | 18.49797 | 0.13637 | 0.07057 | 0.00019 |
+| G97: camera + every object scaled 0.97 | 14.15256 | 22.65556 | 0.13636 | 0.07053 | 0.00016 |
+| WF: camera + WHAM root mix 0.25 + floor objects + table objects 0.974 | 14.74125 | 20.91912 | 0.13632 | 0.07051 | 0.00014 |
+
+- **Measured camera on the best file works:** CD-H -0.20 (G97 against BMQ3KGM, the person being the same).
+- **The person's floor slide transfers:** CD-H -0.065 more (MF against G97). Its local cross-check with apparent size had
+  not confirmed it, which is why only Kaggle decides.
+- **WHAM root mix is rejected:** CD-H +0.59 at weight 0.25. Fitting a parabola gives an optimal weight of about 0.03 and a gain
+  of about 0.01, so the independent-backbone idea does not pay with WHAM.
+- **"Objects are too far" is false as a global claim.** Scaling all objects by 0.97 costs CD-O about +4. With nowham this puts the
+  optimum of a global scale near 1.01. The sensitivity is about 1.25 CD-O per 1 % of scale.
+- **The floor scale still carries per-episode information.** MF's floor objects have about the same mean scale as G97's 0.97
+  (mean 0.974), yet are about 2.5 CD-O better per floor episode, so the differences between episodes are real.
+- **Table objects should stay.** 0.974 on the 13 table objects costs +5.6 CD-O per such episode (WF against MF). So the
+  size-constancy candidate SC, as built on floor calibration, is not uploaded as it stands.
