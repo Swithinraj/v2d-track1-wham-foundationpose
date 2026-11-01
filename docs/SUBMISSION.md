@@ -5,6 +5,40 @@ From a chosen candidate to the leaderboard and the award container. Rules are in
 
 **Freeze: November 4, 22:00 UTC (5:00 p.m. EST).** Uploads are limited to 20 per team per UTC day, shared across accounts.
 
+## Handoff: for Zaid or Swithinraj
+
+Whoever makes the final submission owns these. Ujjwal prepared this branch and has no cluster or Kaggle access from the
+machine it was written on.
+
+1. **Agree who does it**, so two people do not spend the same daily uploads or pick different finals.
+2. **Start from this branch.** Run `git fetch origin && git switch submission && git merge origin/cluster-floor-2026-11`,
+   so the final commit holds both the candidate's scripts and this pipeline.
+3. **Get the official kit.** Take `v2d_submission_kit_official.zip` (sha256 `667be286f664a5859bc631f7845df2576f1ed3bdcdad12e1e9f2de926a2d6c25`) from Ujjwal. `--kit` needs it,
+   because `tools/verify_container.py` may be missing from the cluster's older `official/v2d_submission_kit`.
+4. **Dry-run on the cluster once**, before the final choice, to catch problems early. Use any scored file with its real
+   episode directory:
+
+   ```bash
+   .venvs/submission/bin/python docker/collect_container.py --dry-run --candidate NAME \
+     --kit /path/to/v2d_submission_kit_official.zip --pack-kit /path/to/v2d_submission_kit_official_extracted_or_cluster_kit \
+     --out work/container_dry
+   ```
+
+   If the cluster kit has no `tools/verify_container.py`, point `--pack-kit` at the extracted official kit. Its packing code
+   matched the Oct 25 kit copy Ujjwal checked; confirm the cluster copy matches too.
+5. **Find a Docker machine** (requirements below). The cluster's documented path has no Docker.
+6. **Follow the two sections below.** The one step that needs real work is writing `final_recipe.sh`.
+
+**Tested so far, on a laptop:** `verify`, `pack`, image unpacking and CUDA through the shim, all under a plain `docker run` with
+no network, on a scored Oct 31 file.
+
+**Not tested yet, so check these first:**
+
+- Any real model stage under the proot shim, including how much slower it is.
+- `requirements.lock` from the cluster's Python 3.11 venv installing on the image's Python 3.12. If a pin fails, keep the
+  versions of `numpy`, `trimesh` and `fast_simplification`, because a changed mesh decimation breaks the exact re-pack.
+- `reproduce --episodes` on a subset. The contact stage requires all 30 episodes, so `final_recipe.sh` has to handle this.
+
 ## The rule that shapes everything
 
 The container holds **one commit**, and `verify_container.py` fails unless the counted file cites it. If nothing is selected,
