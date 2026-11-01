@@ -1,3 +1,9 @@
+# Current best (2026-11-02, cluster branch `cluster-floor-2026-11`)
+
+Best per board on Kaggle so far: CD-H **13.56511** (V3, commit 07ff09b), CD-O **17.63890** (OTa, commit af466e2), ACC-H 0.13622 (a0),
+ACC-O 0.07051 (WF), PEN 0.00000 (penzero_v1). How they were built and every result since: `docs/CLUSTER_PROGRESS.md`,
+`pipeline/recipes/floor.md`, `pipeline/recipes/cari4d.md`. The sections below are the earlier state on `vpq-vitpose`.
+
 # Current best submission (2026-10-27)
 
 **BMQ3KGM** is the best single file on every Track 1 board: built from commit `f60f8a6`. Its recipes are unchanged in
