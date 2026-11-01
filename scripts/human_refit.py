@@ -151,6 +151,8 @@ def main() -> None:
     ap.add_argument("--visibility", type=Path, default=None)
     ap.add_argument("--feet", type=Path, default=None, help="floor planes JSON {episode: {normal, c}} (MoGe metres)")
     ap.add_argument("--kappa", type=Path, default=None, help="kappa_gravity_report.json (the objects' kappa)")
+    ap.add_argument("--sharpen", type=float, default=0.0,
+                    help="target V + s (V - X) instead of the smooth X: raises real motion that earlier stages damped")
     args = ap.parse_args()
     dev = "cuda"
     mhr = MHR(str(MODEL), dev, chunk=128, precision="float64")
@@ -178,6 +180,8 @@ def main() -> None:
             X = weighted_smooth(V, args.lam, parts, np.load(args.visibility / f"{tag}.npz")["weights"].astype(np.float64), dev)
         else:
             X = torch.linalg.solve(smoother(T, args.lam, dev), V.reshape(T, -1)).reshape(V.shape) if args.lam > 0 else V.clone()
+        if args.sharpen:
+            X = V + args.sharpen * (V - X)
         used, planted = [], []
         if args.feet is not None:
             align = json.loads((ROOT / "outputs/alignment_sam" / tag / "alignment.json").read_text())

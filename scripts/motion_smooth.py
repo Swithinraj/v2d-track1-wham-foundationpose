@@ -10,7 +10,9 @@ they carry almost no weight here.
 Do not smooth the person this way: MHR's Euler parameters wrap, and a probe here made joint acceleration 16 times worse.
 The person goes through scripts/human_refit.py, which smooths the mesh and refits the pose.
 
-Usage: motion_smooth.py --input DIR --out DIR --lam_object L
+Kaggle measured smoothing here as worse for ACC-O, so --sharpen tests the opposite direction.
+
+Usage: motion_smooth.py --input DIR --out DIR --lam_object L [--sharpen S]
 Writes OUT/episode_*.npz (+ the other files of --input).
 """
 from __future__ import annotations
@@ -37,11 +39,18 @@ def smooth_object(translation, frames, lam):
     return whittaker(translation, weights, lam)
 
 
+def sharpen_object(translation, frames, lam, gain):
+    """t + gain * (t - smooth t): the opposite experiment, raising motion that earlier smoothing damped."""
+    translation = np.asarray(translation, float)
+    return translation + gain * (translation - smooth_object(translation, frames, lam))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--input", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--lam_object", type=float, required=True)
+    parser.add_argument("--sharpen", type=float, default=0., help="use t + s (t - smooth t) instead of smooth t")
     parser.add_argument("--scored", type=Path, default=Path("outputs/hand_fix/episodes_repro_depth_refine_meshes/scored_frames.json"))
     args = parser.parse_args()
     if args.out.exists():
@@ -52,7 +61,8 @@ def main():
         frames = np.asarray(scored[str(int(path.stem.split("_")[1]))])
         with np.load(path) as archive:
             data = dict(archive)
-        data["object_translation"] = smooth_object(data["object_translation"], frames, args.lam_object).astype(data["object_translation"].dtype)
+        change = sharpen_object(data["object_translation"], frames, args.lam_object, args.sharpen) if args.sharpen else smooth_object(data["object_translation"], frames, args.lam_object)
+        data["object_translation"] = change.astype(data["object_translation"].dtype)
         np.savez(args.out / path.name, **data)
     print(f"PASS: object smoothing {args.lam_object} -> {args.out}")
 

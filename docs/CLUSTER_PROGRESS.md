@@ -89,3 +89,21 @@ refinement network cuts object error by about 30 % (16.85 to 11.59 on BEHAVE). `
   a further -0.53. The measured camera costs the objects +0.80 against BMQ3KGM, hence `scripts/object_transfer.py`.
 - Person slide strength: 14.153 at 0, 14.088 at 1, 15.206 at 1.5. A parabola puts the best strength near 0.5 and predicts about
   13.74. Lighter smoothing (lam 3000) is worse than lam 10000.
+
+| E2S: mesh ensemble 0.5 BMQ3KGM + 0.5 Oct 31 human, object smoothing lam 3000 | 14.05375 | 19.32561 | 0.13638 | 0.07089 | 0.00017 |
+| R100S: mesh smoothing lam 100, object smoothing lam 10000 | 14.03962 | 19.20512 | 0.13829 | 0.07139 | 0.00009 |
+
+## Kaggle round 3 (2026-11-01, commit af466e2, no contact stage)
+
+| File | CD-H | CD-O | ACC-H | ACC-O | PEN |
+|---|---|---|---|---|---|
+| OTa: person slide 0.5; objects carried to the person, floor offset 2 cm | **13.67080** | **17.63890** | 0.13623 | 0.07062 | 0.00220 |
+| OTb: person slide 0.7; objects carried to the person, floor offset 4 cm | 13.72005 | 18.36695 | 0.13623 | 0.07063 | 0.00141 |
+
+- Person slide strength, CD-H: 14.153 at 0, 13.671 at 0.5, 13.720 at 0.7, 14.088 at 1, 15.206 at 1.5. The best is near 0.55.
+- Carrying objects to the person is worth about -0.33 CD-O (FB15 against OTa, the same 2 cm offset).
+- Floor offset: the best is near 2 cm (parabola: 1.84 cm).
+- **Extra smoothing is wrong for the ACC boards:** object smoothing raises ACC-O (0.07053 to 0.07089 at lam 3000, 0.07139 at lam
+  10000) and mesh smoothing raises ACC-H (0.13636 to 0.13829). That acceleration is real motion, not noise. It does help CD-H (-0.11).
+- The SAM 3D Body ensemble is worth CD-H -0.10.
+- Skipping the contact stage lowers ACC-H slightly (0.13623 against 0.13637) and raises PEN, as expected.

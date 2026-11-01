@@ -31,3 +31,15 @@ def test_unscored_bridge_does_not_pull_scored_frames():
     bent[40:60, 0] += .5        # junk in the unscored gap
     out = smooth_object(bent, frames, 10.)
     assert np.abs(out[frames, 0] - values[frames, 0]).max() < .01
+
+
+def test_sharpening_raises_motion_and_keeps_low_frequencies():
+    from motion_smooth import sharpen_object
+    T = 200
+    t = np.arange(T, dtype=float)
+    values = np.c_[np.sin(t / 15) * .1, t * .01, np.zeros(T)]
+    out = sharpen_object(values, np.arange(T), 100., .3)
+    assert np.abs(np.diff(out, 2, axis=0)).mean() > np.abs(np.diff(values, 2, axis=0)).mean()
+    # A straight line has nothing to sharpen.
+    line = np.c_[t * .02, t * .01, np.ones(T)]
+    np.testing.assert_allclose(sharpen_object(line, np.arange(T), 100., .3), line, atol=1e-6)
