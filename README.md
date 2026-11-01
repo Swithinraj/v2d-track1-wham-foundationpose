@@ -73,6 +73,7 @@ outputs, so it can be resumed. Without `COMMIT_URL` the packer writes
 `submissions/track1_sam3d_<date>.parquet`. Upload with the kit's
 `submit/v2d_submit.py <parquet> --track track_1` after accepting the rules of all five Track 1
 Kaggle competitions.
+The final file and the award container follow [`docs/SUBMISSION.md`](docs/SUBMISSION.md).
 
 Each stage is also a standalone script, so a cluster can run one task per episode or object:
 

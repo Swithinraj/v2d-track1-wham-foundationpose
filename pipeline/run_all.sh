@@ -6,9 +6,10 @@
 # the order below is the dependency order.
 #
 # Usage: pipeline/run_all.sh            (COMMIT_URL=... for an uploadable Parquet)
+#        RUN_EPISODES="3 7" pipeline/run_all.sh   stages for those episodes only, no packing
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 STAGES="${TRACK1_ROOT}/pipeline/stages"
-EPISODES=$(seq 0 29)
+EPISODES="${RUN_EPISODES:-$(seq 0 29)}"
 
 done_count() { find "$1" -maxdepth 1 -name "$2" 2>/dev/null | wc -l; }
 
@@ -37,4 +38,4 @@ for e in ${EPISODES}; do
     || bash "${STAGES}/track_symmetric.sh" "${e}"     # no-op unless the object is in config/symmetric_objects.json
 done
 
-bash "${STAGES}/pack.sh"
+[[ -n "${RUN_EPISODES:-}" ]] || bash "${STAGES}/pack.sh"

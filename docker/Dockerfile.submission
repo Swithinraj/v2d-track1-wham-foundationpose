@@ -1,0 +1,49 @@
+# V2D Challenge Track 1 submission container (CONTAINER_SUBMISSION.md in the submission kit).
+#
+# The build context is written by docker/collect_container.py on the cluster:
+#
+#   context/
+#     submission/          /submission: submission.json, run.sh, README.md, code/, kit/, verifier_kit/,
+#                          submitted/, outputs/, containers/, weights/, third_party/, inputs/
+#     requirements.lock    pip freeze of .venvs/submission, the packages the submission was packed with
+#     mediapipe.lock       pip freeze of .venvs/mediapipe
+#     apptainer_shim.sh    docker/apptainer_shim.sh
+#
+# Every model runs in the pipeline's own Apptainer images, so the reconstruction uses the images that produced the
+# leaderboard file. They are unpacked unchanged to /opt/envs and run through docker/apptainer_shim.sh, because real
+# Apptainer cannot start under a plain `docker run`. The SIFs stay in /submission/containers as the record.
+FROM ubuntu:24.04
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates curl git python3 python3-venv squashfs-tools \
+    && curl -fsSL -o /tmp/apptainer.deb \
+       https://github.com/apptainer/apptainer/releases/download/v1.5.5/apptainer_1.5.5_amd64.deb \
+    && apt-get install -y --no-install-recommends /tmp/apptainer.deb \
+    && rm -rf /tmp/apptainer.deb /var/lib/apt/lists/*
+
+# Ubuntu's proot 5.1 does not translate statx, so ls and stat miss every path that exists only inside the image.
+ADD --checksum=sha256:db185300a9daabbce86aca7632d8c7fdc4249f6f153171954013b70c5f491ec0 \
+    https://github.com/proot-me/proot/releases/download/v5.5.0/proot /usr/local/bin/proot
+
+# The same package versions that packed the file: mesh decimation must re-pack to the submitted rows.
+COPY requirements.lock mediapipe.lock /tmp/
+RUN python3 -m venv /opt/venvs/submission && /opt/venvs/submission/bin/pip install --quiet -r /tmp/requirements.lock \
+    && python3 -m venv /opt/venvs/mediapipe && /opt/venvs/mediapipe/bin/pip install --quiet -r /tmp/mediapipe.lock
+
+# a+rX keeps git's view of code/ clean: execute stays only on directories and already-executable files.
+COPY submission /submission
+COPY apptainer_shim.sh /usr/local/bin/apptainer
+RUN chmod 755 /submission/run.sh /usr/local/bin/apptainer /usr/local/bin/proot && mkdir -p /opt/envs
+RUN set -e; for sif in /submission/containers/*.sif; do \
+      [ -f "$sif" ] || continue; \
+      env="/opt/envs/$(basename "$sif" .sif)"; \
+      id=$(/usr/bin/apptainer sif list "$sif" | awk -F'|' '/Squashfs/{print $1+0; exit}'); \
+      /usr/bin/apptainer sif dump "$id" "$sif" > /tmp/image.squashfs; \
+      unsquashfs -q -f -d "$env" /tmp/image.squashfs; \
+      rm /tmp/image.squashfs; \
+      test -e "$env/bin/sh"; \
+      mkdir -p "$env/track1" "$env/submission" "$env/data" "$env/.nv"; \
+    done
+RUN chmod -R a+rX /submission /opt/venvs /opt/envs
+WORKDIR /submission
+CMD ["/submission/run.sh", "verify"]
