@@ -4,7 +4,7 @@
 # Usage (inside one allocation): cari4d_candidate.sh NAME STAGE LAM BETA
 #   STAGE init|coconet|refined; LAM mesh smoothing; BETA floor slide strength. Writes submissions/episodes_cand_NAME.
 #   FILL (default episodes_person_V3): person for unfinished episodes. OBJECTS (default episodes_baseold_k_OTa), OBJECT_MESHES.
-#   EPISODES: override the list of episodes taken from CARI4D.
+#   EPISODES: override the list of episodes taken from CARI4D. OWN_OBJECTS=1: CARI4D's objects on its episodes.
 source "$(dirname "${BASH_SOURCE[0]}")/../env.sh"
 cd "${TRACK1_ROOT}"
 NAME="$1"; STAGE="$2"; LAM="$3"; BETA="$4"; S=submissions; A=work/analysis; X="${STAGE}_l${LAM}"; E="work/cari4d/export/${X}"
@@ -39,6 +39,21 @@ for e in $(seq 0 29); do
     cp -l "${S}/${FILL}/${t}.npz" "${P}/"; cp -l "${FILL_MESHES}/${t}.npy" "${M}/"
   fi
 done
+OBJ="${S}/${OBJECTS}"; OBJM="${OBJECT_MESHES}"
+if [[ "${OWN_OBJECTS:-0}" == 1 ]]; then
+  # CARI4D's objects on its episodes, before the camera change, carried to the person like any others.
+  rm -rf "${A}/meshes/c4old_${NAME}" "${S}/episodes_objs_${NAME}" "${A}/meshes/objs_${NAME}"
+  in_container mhr_converter.sif python -u /track1/scripts/ensemble_meshes.py --episodes_dir "/track1/${S}/episodes_c4_${NAME}" --out "/track1/${A}/meshes/c4old_${NAME}" | tail -1
+  OBJ="${S}/episodes_objs_${NAME}"; OBJM="${A}/meshes/objs_${NAME}"; mkdir -p "${OBJ}" "${OBJM}"
+  for e in $(seq 0 29); do
+    t="$(episode_tag "${e}")"
+    if [[ -f "${S}/episodes_c4_${NAME}/${t}.npz" ]]; then
+      cp -l "${S}/episodes_c4_${NAME}/${t}.npz" "${S}/episodes_c4_${NAME}/${t}_object.glb" "${OBJ}/"; cp -l "${A}/meshes/c4old_${NAME}/${t}.npy" "${OBJM}/"
+    else
+      cp -l "${S}/${OBJECTS}/${t}.npz" "${S}/${OBJECTS}/${t}_object.glb" "${OBJ}/"; cp -l "${OBJECT_MESHES}/${t}.npy" "${OBJM}/"
+    fi
+  done
+fi
 rm -rf "${S}/episodes_cand_${NAME}"
-"${VENV_PYTHON}" scripts/object_transfer.py --people "${P}" --people_meshes "${M}" --objects "${S}/${OBJECTS}" --objects_meshes "${OBJECT_MESHES}" --out "${S}/episodes_cand_${NAME}"
+"${VENV_PYTHON}" scripts/object_transfer.py --people "${P}" --people_meshes "${M}" --objects "${OBJ}" --objects_meshes "${OBJM}" --out "${S}/episodes_cand_${NAME}"
 echo "BUILT ${NAME}: CARI4D ${STAGE} lam ${LAM} beta ${BETA} on episodes: ${EPISODES}"
