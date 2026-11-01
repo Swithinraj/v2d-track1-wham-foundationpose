@@ -107,3 +107,16 @@ refinement network cuts object error by about 30 % (16.85 to 11.59 on BEHAVE). `
   10000) and mesh smoothing raises ACC-H (0.13636 to 0.13829). That acceleration is real motion, not noise. It does help CD-H (-0.11).
 - The SAM 3D Body ensemble is worth CD-H -0.10.
 - Skipping the contact stage lowers ACC-H slightly (0.13623 against 0.13637) and raises PEN, as expected.
+
+## Kaggle round 4 (2026-11-01, commit 07ff09b, person only, OTa's objects)
+
+| File | CD-H | CD-O |
+|---|---|---|
+| V1: slide 0.55, lam 30000 | 13.64329 | 17.63890 |
+| V2: slide 0.75, lam 30000 | 13.72610 | 17.63890 |
+| V3: slide 0.55, lam 10000, root mix 0.3 toward a0 | **13.56511** | 17.63890 |
+| V4: slide 0.55, lam 10000, root mix 0.5 toward the Oct 31 human | 13.76572 | 17.63890 |
+
+CD-O is identical to five decimals in all four, which confirms that a person change with the anchor fixed cannot affect it.
+Heavier smoothing of the slide helps (-0.03 at equal strength), a mix toward the trend-off human helps (-0.10), and mixing the
+Oct 31 human's trajectory hurts, though its mesh ensemble helped: that gain came from articulation, not position.
