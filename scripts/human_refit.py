@@ -151,7 +151,11 @@ def main() -> None:
     ap.add_argument("--visibility", type=Path, default=None)
     ap.add_argument("--feet", type=Path, default=None, help="floor planes JSON {episode: {normal, c}} (MoGe metres)")
     ap.add_argument("--kappa", type=Path, default=None, help="kappa_gravity_report.json (the objects' kappa)")
+    ap.add_argument("--foot-near", type=float, default=FOOT_NEAR, help="sole-near-floor planting gate (m)")
+    ap.add_argument("--foot-shift", type=float, default=FOOT_MAX_SHIFT, help="max foot drop onto the floor (m)")
     args = ap.parse_args()
+    global FOOT_NEAR, FOOT_MAX_SHIFT
+    FOOT_NEAR, FOOT_MAX_SHIFT = args.foot_near, args.foot_shift
     dev = "cuda"
     mhr = MHR(str(MODEL), dev, chunk=128, precision="float64")
     hsets = hand_vertex_sets(MODEL)

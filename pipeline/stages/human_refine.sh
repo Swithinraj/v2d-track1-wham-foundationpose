@@ -43,7 +43,8 @@ if [[ "${HUMAN_VISIBILITY:-0}" == 1 ]]; then
     --episodes "/track1/submissions/${IN}" --out "${C}/visibility"
   extra+=(--visibility "${C}/visibility")
 fi
-[[ -n "${HUMAN_FEET:-}" ]] && extra+=(--feet "${HUMAN_FEET}" ${HUMAN_KAPPA:+--kappa "${HUMAN_KAPPA}"})
+[[ -n "${HUMAN_FEET:-}" ]] && extra+=(--feet "${HUMAN_FEET}" ${HUMAN_KAPPA:+--kappa "${HUMAN_KAPPA}"} \
+  ${HUMAN_FOOT_NEAR:+--foot-near "${HUMAN_FOOT_NEAR}"} ${HUMAN_FOOT_MAX_SHIFT:+--foot-shift "${HUMAN_FOOT_MAX_SHIFT}"})
 fusion=()
 if [[ "${KP2D}" != none ]]; then
   py wrist_fusion.py --bodies "${W}/bodies_s10" --episodes "${S}/${IN}" --anchors "${W}/anchors" --mediapipe "${KP2D}" --out "${W}/fusion"
