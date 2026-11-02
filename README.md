@@ -48,12 +48,13 @@ Generated object meshes are estimates, never challenge ground truth; each instal
 
 ```bash
 bash pipeline/setup/fetch_sources.sh          # pinned upstream repos + submodules, submission kit
-bash pipeline/setup/build_containers.sh       # Apptainer images in containers/ (slow: CUDA extensions)
-bash pipeline/setup/download_data.sh          # Track 1 videos + metadata (HF_TOKEN / HF_TOKEN_FILE if required)
+bash pipeline/setup/setup_venv.sh             # host venv with kit requirements + HF downloader
+bash pipeline/setup/download_data.sh          # only Track 1 videos + metadata (HF_TOKEN / HF_TOKEN_FILE if required)
+bash pipeline/setup/build_containers.sh       # six Apptainer images in containers/ (slow: CUDA extensions)
 bash pipeline/setup/download_weights.sh       # public checkpoints: MHR, SAM 2.1, MoGe-2, FoundationPose, GroundingDINO
 bash pipeline/setup/download_sam3d_body.sh    # gated SAM 3D Body (HF_TOKEN / HF_TOKEN_FILE)
 bash pipeline/setup/download_sam3d_objects.sh # gated SAM 3D Objects (HF_TOKEN / HF_TOKEN_FILE)
-bash pipeline/setup/setup_venv.sh             # host venv with the official kit's requirements (PYTHON=...)
+".venvs/submission/bin/python" pipeline/setup/download_vitpose.py  # ViTPose-H for BMQ3KGM
 bash pipeline/setup/setup_mediapipe.sh        # host venv with MediaPipe + its two pinned models (2D keypoints)
 ```
 

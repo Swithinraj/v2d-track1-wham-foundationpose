@@ -47,6 +47,41 @@ episodes, identity, articulation, object arrays and anchor poses match V5 exactl
 The largest actual root difference is 2.04670 cm. This is an implementation
 correction, not evidence of an accuracy gain until scored on Kaggle.
 
+### TIMEAXIS measured result
+
+| Candidate | CD-H | CD-O | ACC-H | ACC-O | PEN |
+|---|---|---|---|---|---|
+| V5 control | 13.53699 | 17.63890 | 0.13625 | 0.07062 | 0.00201 |
+| TIMEAXIS | **13.52781** | 17.63890 | **0.13624** | 0.07062 | 0.00201 |
+
+TIMEAXIS improves CD-H by 0.00918 cm: a small real improvement, not a replacement
+for P3's best 13.40710. Submitted reconstruction commit: `5e0bc96`. Kaggle IDs:
+CD-H 57889510, CD-O 57889513, ACC-H 57889516, ACC-O 57889519, PEN 57889523.
+The user explicitly approved the push and test after automatic review initially
+blocked the push under the older handoff condition.
+
+## Shared-team uploader flaw
+
+The official client used the most recent submitter's username plus team name as
+an identity. When a teammate uploaded most recently on CD-H only, it refused the
+same `Izus_systems` team. The wrapper now changes only the identity-set calculation:
+prefer the actual team name, falling back to the user for solo entries. All other
+official preflight, quota, validation, upload and receipt logic remains unchanged.
+Unit/integration tests and independent review pass; live dry-run confirmed entry
+and remaining quota on all five boards before the successful TIMEAXIS upload.
+The stored official kit source is unchanged.
+
+## Modeling ablation: inherited floor prior
+
+CARI4D's learned spatial correction is currently followed by floor slide beta 0.55,
+chosen on the old SAM pipeline. C5 tests beta 0 on exactly the same six episodes
+(9, 13, 16, 24, 25, 28), model stage, smoothing and fallback as C1. C1 scored
+13.49139 CD-H / 17.71056 CD-O. C5 scored 14.11530 CD-H / 17.71056 CD-O,
+with ACC-H 0.13654 and ACC-O 0.07062. Removing the floor correction worsens
+CD-H by 0.62391 cm, so beta 0 is rejected. This checks a model-specific assumption
+instead of treating old tuning as universal. See `docs/TRACK1_COMPUTE_TRIAGE_2026-11-02.md`
+for the subsequent cancellation of the full-stage GPU batch and preserved caches.
+
 ## Independent scene-geometry diagnostic
 
 A throwaway SIFT/essential-matrix probe used only released RGB backgrounds and
@@ -57,7 +92,7 @@ constraint. Results are in `work/spikes/background_geometry/report.json`.
 
 ## Validation and runtime evidence
 
-- Full local suite after both corrections: 114 passed.
+- Full local suite after the diagnostic, time-axis and uploader corrections: 118 passed.
 - Actual installed exporter source SHA256:
   `092c66dc41618ed3e82eeba641a6a4f067093e3dfb86e4956290f3dc48e2df67`.
 - Patched exporter SHA256:

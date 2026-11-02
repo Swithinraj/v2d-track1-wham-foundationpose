@@ -6,11 +6,11 @@ source "$(dirname "${BASH_SOURCE[0]}")/../env.sh"
 clone_pinned() {  # clone_pinned URL COMMIT DIR
   local url="$1" commit="$2" dir="${TRACK1_ROOT}/third_party/$3"
   if [[ ! -d "${dir}/.git" ]]; then
-    git clone --quiet "${url}" "${dir}"
+    GIT_LFS_SKIP_SMUDGE=1 git clone --filter=blob:none --quiet "${url}" "${dir}"
   fi
   git -C "${dir}" fetch --quiet origin "${commit}" 2>/dev/null || true
-  git -C "${dir}" checkout --quiet "${commit}"
-  git -C "${dir}" submodule update --init --recursive --quiet
+  GIT_LFS_SKIP_SMUDGE=1 git -C "${dir}" checkout --quiet "${commit}"
+  GIT_LFS_SKIP_SMUDGE=1 git -C "${dir}" submodule update --init --recursive --quiet
   [[ "$(git -C "${dir}" rev-parse HEAD)" == "${commit}" ]] || { echo "$3 is not at ${commit}" >&2; exit 4; }
   echo "PASS: third_party/$3 @ ${commit:0:12}"
 }

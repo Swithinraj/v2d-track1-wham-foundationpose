@@ -1,5 +1,36 @@
 # Image-conditioned dynamics experiment, November 2
 
+**Uploads paused by the owner after these two tests completed.** Do not submit any
+further candidate. Preserve the remaining shared quota for teammates; new research
+and validation can continue locally.
+
+## Scored outcome: rejected
+
+Code was published to `vpq-vitpose` at
+`3a576823d4803dcab820a306966f7c79f4d3f90d`. Both authorized candidates were packed
+with that commit and accepted/scored on all five boards.
+
+| Candidate | CD-H | CD-O | ACC-H | ACC-O | PEN |
+|---|---:|---:|---:|---:|---:|
+| PVA_POSE | 13.54747 | 18.04525 | 0.16712 | 0.07068 | 0.00256 |
+| PVA_ACC | 13.55762 | 18.04525 | 0.15690 | 0.07068 | 0.00257 |
+
+Neither beats any current best. ACC-H is worse than P2's 0.13616 by 0.03096
+and 0.02074 respectively. Root-only also fails, so articulation fitting alone
+does not explain the regression. The released visual dynamics signal did not
+transfer through these adapters; improved fitting/2D agreement was misleading.
+Stop this experiment and preserve all previous bests. No additional PVA GPU work.
+
+Receipts: `../repo/submissions/track1_cand_PVA_POSE.parquet.ddb393ea091e.kaggle-receipt.json`
+and `track1_cand_PVA_ACC.parquet.45697eabb442.kaggle-receipt.json`. Submission refs
+are 57916970/973/975/978/979 and 57917037/039/046/048/052 (board order above).
+Logs are `../logs/kaggle_pva_pose.log` and `kaggle_pva_acc.log`.
+
+A read-only audit of 14 already refined CARI4D object tracks also completed on
+wr20 (job444582). Refinement reduces their jitter but leaves much larger second
+differences than the retained tracks; no new CARI4D reconstruction was launched.
+Details: `../repo/work/analysis/refined_object_dynamics.json`.
+
 ## Decision and evidence
 
 The next hypothesis is to correct motion derivatives using video evidence while

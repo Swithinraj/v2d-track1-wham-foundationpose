@@ -1,6 +1,19 @@
 # Track 1 overnight research and execution plan
 
+**Current owner instruction: no further Kaggle submissions.** The user reserves
+at least two slots per board for other people. Both earlier approved PVA uploads
+were already complete when this instruction arrived. Their preflight counts imply
+only one CD-H and two slots on each other board remained; verify via dry-run only.
+All subsequent work stays local until the owner lifts the upload pause.
+
 ## Execution status: November 2, afternoon
+
+**Evening update:** both approved PVA tests have now scored and are rejected.
+PVA_POSE: 13.54747 / 18.04525 / 0.16712 / 0.07068 / 0.00256;
+PVA_ACC: 13.55762 / 18.04525 / 0.15690 / 0.07068 / 0.00257.
+Neither improves any current best. Stop PVA GPU work. Published code commit:
+`3a576823d4803dcab820a306966f7c79f4d3f90d`. The statuses below describe earlier
+milestones, not pending approvals or unscored files.
 
 The original 08:00 review target was missed. Automatic approval service usage
 limits interrupted execution around 02:14; work resumed at 13:11 Europe/Berlin

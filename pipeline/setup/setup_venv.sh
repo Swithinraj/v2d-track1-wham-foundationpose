@@ -15,5 +15,6 @@ VENV="${TRACK1_ROOT}/.venvs/submission"
 [[ -x "${VENV}/bin/python" ]] || "${PYTHON}" -m venv "${VENV}"
 "${VENV}/bin/python" -m pip install --quiet --upgrade pip
 "${VENV}/bin/python" -m pip install --quiet -r "${KIT}/requirements.txt"
+"${VENV}/bin/python" -m pip install --quiet huggingface_hub
 (cd "${KIT}" && "${VENV}/bin/python" eval_reconstruction.py --help >/dev/null)
 echo "PASS: submission venv at .venvs/submission"

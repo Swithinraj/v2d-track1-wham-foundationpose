@@ -48,7 +48,7 @@ From: pytorch/pytorch:2.5.1-cuda12.4-cudnn9-devel
     pip install numpy==1.26.3 scipy joblib scikit-learn ruamel.yaml trimesh pyyaml opencv-python imageio imageio-ffmpeg "imageio[pyav]" open3d transformations warp-lang einops kornia pyrender av h5py hdf5plugin videoio==0.3.0 scikit-image meshcat webdataset omegaconf pypng roma seaborn opencv-contrib-python openpyxl wandb matplotlib tqdm pillow accelerate timm yacs smplx tensorboardx pycocotools rtree xatlas
     pip install pytorch-lightning hydra-core hydra-submitit-launcher hydra-colorlog pyrootutils networkx==3.2.1 rich dill pandas jsonlines loguru optree fvcore cython py-soma-x==0.2.1
     pip install kaolin==0.18.0 -f https://nvidia-kaolin.s3.us-east-2.amazonaws.com/torch-2.5.1_cu124.html
-    FORCE_CUDA=1 TORCH_CUDA_ARCH_LIST="8.0 8.6 8.9 9.0" pip install "git+https://github.com/facebookresearch/pytorch3d.git@v0.7.9"
+    FORCE_CUDA=1 TORCH_CUDA_ARCH_LIST="8.0 8.6 8.9 9.0" MAX_JOBS=2 pip install "git+https://github.com/facebookresearch/pytorch3d.git@v0.7.9"
 
     git clone https://github.com/NVlabs/nvdiffrast /workspace/third_party/nvdiffrast
     cd /workspace/third_party/nvdiffrast
