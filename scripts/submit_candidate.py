@@ -5,7 +5,8 @@ The challenge allows five submissions per week and unlimited ones in the final t
 freeze. Kaggle cannot express a weekly limit, so nothing stops an early upload except this check. The token is read from
 a file and passed only through the environment, so it never appears in a command line or a log.
 
-Usage: submit_candidate.py FILE.parquet -m "what changed"  [--token FILE] [--dry-run]
+Usage: submit_candidate.py FILE.parquet -m "what changed"  [--token FILE] [--dry-run] [--only METRIC ...]
+  --only: upload to these boards only (cd_h_cm cd_o_cm acc_h_cm acc_o_cm interpenetration_cm), sparing the others' quota.
 Writes FILE.<...>.kaggle-receipt.json next to the file (the official client's receipt) and prints the five scores.
 """
 from __future__ import annotations
@@ -32,6 +33,7 @@ def main():
     parser.add_argument("-m", "--message", required=True)
     parser.add_argument("--token", type=Path, default=ROOT.parent / "v2d_track1_handoff_2026-10-31/tokens/kaggle_api.txt")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--only", nargs="+", metavar="METRIC")
     args = parser.parse_args()
     now = dt.datetime.now(dt.timezone.utc)
     if not args.dry_run and not window_is_open(now):
@@ -42,6 +44,7 @@ def main():
     kit = ROOT / "official/v2d_submission_kit"
     command = [sys.executable, str(ROOT / "scripts/v2d_submit_team.py"), str(kit / "submit/v2d_submit.py"),
                str(args.file.resolve()), "--track", "track_1", "-m", args.message]
+    command += ["--only", *args.only] if args.only else []
     command += ["--dry-run"] if args.dry_run else ["--wait"]
     sys.exit(subprocess.run(command, cwd=kit, env=env).returncode)
 
