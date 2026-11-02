@@ -40,7 +40,8 @@ def main():
     env = dict(os.environ, KAGGLE_API_TOKEN=args.token.read_text().strip(),
                KAGGLE_CONFIG_DIR=str(ROOT.parent / ".cache/kaggle"), TMPDIR=str(ROOT.parent / ".tmp"))
     kit = ROOT / "official/v2d_submission_kit"
-    command = [sys.executable, "submit/v2d_submit.py", str(args.file.resolve()), "--track", "track_1", "-m", args.message]
+    command = [sys.executable, str(ROOT / "scripts/v2d_submit_team.py"), str(kit / "submit/v2d_submit.py"),
+               str(args.file.resolve()), "--track", "track_1", "-m", args.message]
     command += ["--dry-run"] if args.dry_run else ["--wait"]
     sys.exit(subprocess.run(command, cwd=kit, env=env).returncode)
 

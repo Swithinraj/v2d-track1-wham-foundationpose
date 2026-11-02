@@ -27,8 +27,14 @@ def rank_sums(table):
     """{board: {team: score}} -> (per-board ranks, [(team, sum)] for teams on every board, best first)."""
     per_board = {board: ranks(scores) for board, scores in table.items()}
     teams = set.intersection(*(set(scores) for scores in table.values()))
-    totals = sorted(((team, sum(per_board[board][team] for board in table)) for team in teams), key=lambda item: item[1])
+    totals = sorted(((team, sum(per_board[board][team] for board in table)) for team in teams), key=lambda item: (item[1],item[0]))
     return per_board, totals
+
+
+def overall_table(totals):
+    """Computed rank by rank sum, retaining ties without inventing a tiebreaker."""
+    positions=ranks(dict(totals))
+    return [(positions[team],team,total) for team,total in totals]
 
 
 def main():
@@ -56,13 +62,14 @@ def main():
     (args.out / "all.json").write_text(json.dumps(table))
     per_board, totals = rank_sums(table)
     print("#  team                 sum  " + " ".join(f"{b:>5s}" for b in BOARDS) + " | scores")
-    for k, (team, total) in enumerate(totals[:args.top]):
-        print(f"{k + 1:2d} {team[:20]:20s} {total:3d}  " + " ".join(f"{per_board[b][team]:5d}" for b in BOARDS) + " | "
+    for position,team,total in overall_table(totals)[:args.top]:
+        print(f"{position:2d} {team[:20]:20s} {total:3d}  " + " ".join(f"{per_board[b][team]:5d}" for b in BOARDS) + " | "
               + " ".join(f"{table[b][team]:.5f}" for b in BOARDS))
     mine = [k for k, (team, _) in enumerate(totals) if team == args.team]
     if mine:
         team, total = totals[mine[0]]
-        print(f"{team}: overall #{mine[0] + 1}, sum {total}, ranks " + str({b: per_board[b][team] for b in BOARDS}))
+        position=ranks(dict(totals))[team]
+        print(f"{team}: computed overall #{position} by rank sum (ties retained), sum {total}, ranks " + str({b: per_board[b][team] for b in BOARDS}))
     for board in BOARDS:
         ladder = sorted(set(table[board].values()))[:10]
         print(f"{board:6s} scores to reach each place: " + " ".join(f"{score:.5f}" for score in ladder))
