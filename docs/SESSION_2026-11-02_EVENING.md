@@ -36,8 +36,8 @@ For the human root the same shrink hurt: root acceleration is mostly real motion
 
 - P2L1 / P2L03: P2 refit after light mesh smoothing (lam 1 / 0.3); ACC-H.
 - P4C: CARI4D CoCoNet person added to E2's two members (fixed thirds) on its 19 episodes, then P4's recipe; CD-H/CD-O.
-- P2F: P2 with planted feet held (`scripts/feet_hold.py`); feet/ankles are P2's jerkiest joints, though 81 % of the
-  moving segments between stances are real steps (median 33 cm), so the expected gain is small.
+- P2F (feet_hold.py) built and REJECTED locally: holding feet while the pelvis moves gives targets the leg cannot meet;
+  refit error 0.6 mm median (normally 0.01) and joint acceleration rose 0.0445 -> 0.0650. Not uploaded.
 - Packed for the next quota: P4tab102 (table x1.02; a quadratic through x0.974, x1 and x1.01 puts the optimum near 1.02),
   P4tab101flo101 (floor objects x1.01 on top).
 
