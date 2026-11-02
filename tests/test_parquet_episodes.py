@@ -118,3 +118,14 @@ def test_directory_writes_npz_mesh_and_frames(tmp_path):
     assert json.loads((tmp_path / "out/scored_frames.json").read_text())["7"] == [0, 1, 2, 3]
     with pytest.raises(ValueError, match="exists"):
         write_episodes(data, tmp_path / "out")
+
+
+def test_standings_use_shared_ranks_and_the_lowest_sum():
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts/analysis"))
+    from standings import rank_sums, ranks
+    assert ranks({"a": 0., "b": 0., "c": 1.}) == {"a": 1, "b": 1, "c": 3}
+    table = {"x": {"a": 1., "b": 2., "c": 3.}, "y": {"a": 3., "b": 1., "c": 2.}, "z": {"a": 0., "b": 0., "c": 0.}}
+    _, totals = rank_sums(table)
+    assert totals[0] == ("b", 4) and dict(totals)["a"] == 5 and dict(totals)["c"] == 6
