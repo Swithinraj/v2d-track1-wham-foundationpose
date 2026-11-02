@@ -1,7 +1,9 @@
 # Current best (2026-11-02, cluster branch `cluster-floor-2026-11`)
 
-Best per board on Kaggle so far: CD-H **13.56511** (V3, commit 07ff09b), CD-O **17.63890** (OTa, commit af466e2), ACC-H 0.13622 (a0),
-ACC-O 0.07051 (WF), PEN 0.00000 (penzero_v1). How they were built and every result since: `docs/CLUSTER_PROGRESS.md`,
+Verified against live Kaggle at about 01:15 CET on November 2: CD-H **13.40710** and CD-O **17.51622** (P3, submitted commit
+1717c3a), ACC-H **0.13616** (P2), ACC-O **0.07051** (WF), PEN **0.00000** (penzero_v1). The team `Izus_systems` is
+**5th overall by the FAQ rank-sum calculation**, sum 40: ranks 10 / 8 / 10 / 11 / 1. These are different files; P3's own
+ACC-H is 0.13887 and PEN is 0.00260. See `docs/PROGRESS_AUDIT_2026-11-02.md` for the current audit. How they were built and every result since: `docs/CLUSTER_PROGRESS.md`,
 `pipeline/recipes/floor.md`, `pipeline/recipes/cari4d.md`. The sections below are the earlier state on `vpq-vitpose`.
 
 # Current best submission (2026-10-27)

@@ -30,6 +30,11 @@ PY
 # The image was built without git-lfs, so these two assets are only pointers inside it. They come from the same upstream
 # commit, verified by the pointers' sha256 (pipeline/setup/fetch_cari4d_assets.sh).
 export APPTAINER_BIND="${TRACK1_ROOT}/weights/cari4d/lib_mhr_assets:/workspace/v2d_cari4d/lib/cari4d/lib_mhr/assets:ro"
+if [[ -n "${CARI4D_EXPORTER_PATCH:-}" ]]; then
+  require_file "${CARI4D_EXPORTER_PATCH}" "generate with scripts/cari4d_runtime_patch.py from this container's exporter"
+  [[ "${CARI4D_EXPORTER_PATCH}" == "${TRACK1_ROOT}/"* ]] || { echo "FAIL: exporter patch must be inside TRACK1_ROOT" >&2; exit 2; }
+  export APPTAINER_BIND="${APPTAINER_BIND},${CARI4D_EXPORTER_PATCH}:/workspace/v2d_cari4d/lib/cari4d/prep/run_foundationpose_mhr_export.py:ro"
+fi
 SYMMETRIC=""; [[ "${OBJECT}" == hula_hoop ]] && SYMMETRIC="--symmetric_object"
 in_container v2d_cari4d.sif CUDA_VISIBLE_DEVICES="${GPU}" python -m v2d.cari4d.lib.run_inference \
   --video_path "/track1/${I}/${TAG}.0.color.mp4" --mask_h5_path "/track1/${I}/masks_k0.h5" \

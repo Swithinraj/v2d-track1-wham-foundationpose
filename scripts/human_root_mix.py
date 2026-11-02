@@ -36,8 +36,13 @@ def similarity(source, target):
     return scale, rotation, b - scale * (a @ rotation)
 
 
-def mix_shift(base, other, weight, *, lam=3000.):
-    """Displacement [F,3] of the base over its frames [F,V,3]: toward other by weight, zero at frame 0."""
+def mix_shift(base, other, weight, *, lam=3000., frames=None):
+    """Displacement [F,3], toward other by weight, with zero at the anchor.
+
+    frames are video frame indices. Missing scored frames carry zero observation
+    weight rather than being compressed out of time. Omitted frames means a
+    contiguous sequence, retaining the numerical API for callers with full clips.
+    """
     base, other = np.asarray(base, float), np.asarray(other, float)
     if base.shape != other.shape or base.ndim != 3 or base.shape[2] != 3:
         raise ValueError("base and other must be matching [F,V,3] arrays")
@@ -46,7 +51,15 @@ def mix_shift(base, other, weight, *, lam=3000.):
     scale, rotation, translation = similarity(other[0], base[0])
     aligned = scale * (other @ rotation) + translation
     difference = (aligned - base).mean(1)
-    smooth = whittaker(difference, np.ones(len(difference)), lam)
+    if frames is None:
+        frames=np.arange(len(difference))
+    frames=np.asarray(frames)
+    if frames.shape!=(len(difference),) or not np.issubdtype(frames.dtype,np.integer) or not len(frames) or frames[0]<0 or (np.diff(frames)<=0).any():
+        raise ValueError("frames must be increasing nonnegative integer video indices matching the trajectories")
+    index=frames-frames[0]
+    grid=np.zeros((int(index[-1])+1,3)); weights=np.zeros(len(grid))
+    grid[index]=difference; weights[index]=1.
+    smooth = difference.copy() if lam == 0 else whittaker(grid, weights, lam)[index]
     shift = weight * (smooth - smooth[0])
     shift[0] = 0.
     return shift
@@ -75,7 +88,7 @@ def main():
     for path in sorted(args.base.glob("episode_??????.npz")):
         frames = np.asarray(scored[str(int(path.stem.split("_")[1]))])
         shift = mix_shift(np.load(args.base_meshes / f"{path.stem}.npy"), np.load(args.other_meshes / f"{path.stem}.npy"),
-                          args.weight, lam=args.lam)
+                          args.weight, lam=args.lam, frames=frames)
         with np.load(path) as archive:
             data = dict(archive)
         pose = data["pose"].astype(np.float64)

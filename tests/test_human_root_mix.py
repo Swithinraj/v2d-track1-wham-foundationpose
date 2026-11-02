@@ -57,3 +57,28 @@ def test_full_shift_fills_unscored_frames():
     shift = np.array([[0, 0, 0], [1, 0, 0], [5, 0, 0]], float)
     out = full_shift(shift, frames, 10)
     np.testing.assert_allclose(out[:, 0], [0, 0, 0, 1, 2, 3, 4, 5, 5, 5])
+
+
+def test_root_mix_smooths_on_video_time_across_missing_scored_frames():
+    from human_root_mix import mix_shift
+    frames=np.r_[np.arange(20),np.arange(200,220)]
+    base=body(len(frames))
+    offset=np.c_[np.zeros(len(frames)),np.zeros(len(frames)),frames*.001]
+    shift=mix_shift(base,base+offset[:,None],.5,frames=frames)
+    np.testing.assert_allclose(shift,.5*offset,atol=1e-8)
+    np.testing.assert_array_equal(shift[0],[0,0,0])
+
+
+@pytest.mark.parametrize('frames',[np.array([0,1,1]),np.array([0,2,-1]),np.array([0,1]),np.array([0,.5,2])])
+def test_root_mix_rejects_invalid_video_frame_axis(frames):
+    from human_root_mix import mix_shift
+    with pytest.raises(ValueError,match='frames'):
+        mix_shift(body(3),body(3),.5,frames=frames)
+
+
+def test_zero_smoothing_with_scoring_gaps_keeps_observed_motion():
+    from human_root_mix import mix_shift
+    base=body(3)
+    offset=np.array([[0,0,0],[0,0,.01],[0,0,.04]])
+    shift=mix_shift(base,base+offset[:,None],.5,lam=0,frames=np.array([0,1,4]))
+    np.testing.assert_allclose(shift,.5*offset,atol=1e-10)

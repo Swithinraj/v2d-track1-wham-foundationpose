@@ -123,3 +123,28 @@ Oct 31 human's trajectory hurts, though its mesh ensemble helped: that gain came
 
 Kaggle's real limit in the final window: 20 uploads per team per UTC day, shared across accounts ("Your team has used its daily
 Submission allowance (20) today"). `swithinraj` also uploads to this team.
+
+## Live audit and round 6 (2026-11-02, about 01:15 CET)
+
+Read-only Kaggle history and leaderboard refresh saved in `../logs/progress_audit_2026-11-02_kaggle.json`
+and `../.tmp/audit-20261102/leaderboards/all.json`. Snapshot and remaining work: `docs/PROGRESS_AUDIT_2026-11-02.md`.
+
+| File | CD-H | CD-O | ACC-H | ACC-O | PEN |
+|---|---|---|---|---|---|
+| P1 | 13.55091 | 18.08246 | 0.13812 | 0.07058 | 0.00241 |
+| P2 | 13.56097 | 18.04525 | **0.13616** | 0.07068 | 0.00256 |
+| P3 | **13.40710** | **17.51622** | 0.13887 | 0.07064 | 0.00260 |
+| V5 | 13.53699 | 17.63890 | 0.13625 | 0.07062 | 0.00201 |
+| V6 | 13.56530 | 17.63890 | 0.13627 | 0.07062 | 0.00197 |
+| S30 | 13.83147 | 17.66263 | 0.13775 | 0.07105 | 0.00213 |
+
+- P3 stacks the ensemble, mesh smoothing and floor slide; it improves CD-H by 0.94708 cm and CD-O by 1.08815 cm
+  against BMQ3KGM. It is the distance-board choice so far, not the acceleration/PEN choice.
+- P2 is the new ACC-H best. Sharpening S30 worsened both acceleration metrics; it is rejected for those boards.
+- Live rank calculation: `Izus_systems` #5 overall, sum 40; leading team sum 13.
+- Full local pytest suite: **98 passed**. P3 has the official 740,780 row IDs in order, finite coordinates,
+  one provenance commit, and 30 saved NPZ/GLB episode pairs. P2 and WF also have 30 saved episode pairs.
+- Every video and all 16,563 person/object masks are present. CARI4D continues on wr20 only (job 434328,
+  3 GPUs in one node); follow-up build 438703 waits on that job. Round 7 and the CARI4D upload automation are alive.
+- The full BMQ-from-video ancestry, final Docker submission container, final technical report and common final
+  provenance commit for all counted files remain unfinished. Do not equate successful local tests with reproduction certification.
