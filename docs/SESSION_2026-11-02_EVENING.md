@@ -46,3 +46,25 @@ For the human root the same shrink hurt: root acceleration is mostly real motion
 Every counted file must cite ONE final commit. penzero_v1 (PEN 0, Oct 17, `70c79b2`) is not stored locally; regenerate a
 PEN-0 file with `scripts/pen_zero.py` (needs dense hands from `mhr_bodies.py --hands-only`) on the final CD file, which
 keeps its human (CD-H, ACC-H unchanged). Then re-pack each board's best with the final commit and upload with `--only`.
+
+## November 3 results (all uploads board-specific)
+
+| File | Board | Score | Verdict |
+|---|---|---|---|
+| P4tab102: table objects x1.02 | CD-O | 16.89551 | better than x1.01 (17.08369) |
+| P4Ctab101: CARI4D CoCoNet person as third ensemble member (19 eps, thirds), table x1.01 | CD-H / CD-O | **13.10770** / 17.07383 | CD-H -0.22 |
+| P2S60: full-body acceleration x0.6 | ACC-H | 0.13692 | rejected (shrinking human motion hurts) |
+| P4tab101flo101: floor objects x1.01 on top | CD-O | 16.92676 | floor scale helps (-0.157) |
+| P4L300tab101: mesh smoothing lam 300 | CD-H | 13.39787 | rejected (lam 100 better) |
+| WFk55final: object acceleration x0.55 | ACC-O | 0.06972 | k 0.6 stays (0.06971) |
+| P4Cs23f2: table x1.023, floor x1.02 | CD-O | 17.04921 | floor x1.02 overshoots |
+| P4Ctszf2: per-episode size constancy (table) | CD-O | 18.37516 | rejected (+1.33) |
+| P4Cs23f08: table x1.023, floor x1.008 (fitted optima) | CD-O | **16.73331** | new CD-O best |
+| E3W5tab: CoCoNet weight 0.5 (others 0.25) | CD-H | **13.08770** | new CD-H best (fitted optimum ~0.47) |
+| P2E: P2 recipe on the E3W5 ensemble | ACC-H | 0.13664 | rejected (CoCoNet person is mesh-smoothed) |
+| P4tab101Z: PEN-0 regeneration (pen_zero.py) | PEN | 0.00000 | endgame PEN file works |
+
+Object scales for the final: `pipeline/cluster/object_factors_t1023_f1008.json`. ACC-H stays on P2 (0.13616): every
+smoothing or shrink of the human scored worse. CARI4D's CoCoNet stage was run on the 11 missing episodes (one episode
+per job: stopping the container after 06_coconet also ends its job), then `run_c4_c30.sbatch` and
+`run_ensemble_variant.sbatch` (NAME=E3C30) build the all-30 ensemble, and `run_pen_zero.sbatch` its PEN-0 version.
