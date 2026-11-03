@@ -8,6 +8,8 @@ Subcommands
             scored-frame order) and full-length (unpack_submission/kit: `pose` indexed by video
             frame id, unscored frames NaN). Per-frame arrays: mhr_pose, object_rotation,
             object_translation. Per-episode: mhr_scales, mhr_shape, object_scale.
+  sim3      --json T.json   (ens_reframe.py output)
+            Carry each episode's objects through a similarity (s, R, t0) in the kit's convention.
   camscale  --scale S --episodes E [E ...]
             Camera-centred object scale: object_translation *= S and object_scale *= S on the
             listed episodes. The image projection of every object point is unchanged (an object
@@ -114,6 +116,29 @@ def patch_camscale(df, keys, scale, episodes):
     return vals, int(t.sum() + s.sum())
 
 
+def patch_sim3(df, keys, sims):
+    """Carry the objects through a per-episode similarity (s, R, t0), kit convention
+    X = scale * R_obj @ local + t:  R_obj' = R @ R_obj, t' = s R t + t0, scale' = s * scale.
+    object_rotation is stored as its 3 matrix rows (points 0..2) per frame."""
+    vals = df[["x", "y", "z"]].to_numpy(float).copy()
+    n = 0
+    for ep_s, sim in sims.items():
+        ep = int(ep_s)
+        s_, R, t0 = float(sim["s"]), np.asarray(sim["R"], float), np.asarray(sim["t"], float)
+        e = (keys["episode"] == ep).to_numpy()
+        tr = e & (keys["array"] == ORDER.index("object_translation")).to_numpy()
+        vals[tr] = s_ * vals[tr] @ R.T + t0
+        sc = e & (keys["array"] == ORDER.index("object_scale")).to_numpy() & (keys["point"] == 0).to_numpy()
+        vals[sc, 0] *= s_
+        rot = e & (keys["array"] == ORDER.index("object_rotation")).to_numpy()
+        sub = keys[rot].sort_values(["frame", "point"])
+        Ro = vals[df.index.get_indexer(sub.index)].reshape(-1, 3, 3)          # rows of R_obj per frame
+        Rn = np.einsum("ij,fjk->fik", R, Ro)
+        vals[df.index.get_indexer(sub.index)] = Rn.reshape(-1, 3)
+        n += int(tr.sum() + sc.sum() + rot.sum())
+    return vals, n
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--base", type=Path, required=True)
@@ -126,6 +151,8 @@ def main():
     p = sub.add_parser("camscale")
     p.add_argument("--scale", type=float, required=True)
     p.add_argument("--episodes", type=int, nargs="+", required=True)
+    p = sub.add_parser("sim3")
+    p.add_argument("--json", type=Path, required=True, help='ens_reframe.py output: {"sim3": {ep: {s, R, t}}}')
     a = ap.parse_args()
 
     df = pd.read_parquet(a.base)
@@ -133,9 +160,14 @@ def main():
     if a.cmd == "npz":
         vals, n = patch_npz(df, keys, a.variant, a.arrays)
         what = f"{n} rows changed in {a.arrays}"
-    else:
+    elif a.cmd == "camscale":
         vals, n = patch_camscale(df, keys, a.scale, a.episodes)
         what = f"{n} rows scaled x{a.scale} on episodes {a.episodes}"
+    else:
+        import json
+        sims = json.loads(a.json.read_text())["sim3"]
+        vals, n = patch_sim3(df, keys, sims)
+        what = f"{n} object rows carried through per-episode similarities ({len(sims)} episodes)"
     out = df.copy()
     out[["x", "y", "z"]] = vals
     if a.commit:

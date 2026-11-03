@@ -1,14 +1,14 @@
 #!/bin/bash
-#SBATCH --job-name=ens-full
+#SBATCH --job-name=model-fit
 #SBATCH --partition=gpu
-#SBATCH --nodelist=wr14
+#SBATCH --nodelist=wr24
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:4
 #SBATCH --cpus-per-task=32
 #SBATCH --mem=160G
 #SBATCH --time=01:30:00
-#SBATCH --output=/work/mnidgu2s/project1/track1_objbias/logs/ens-full-%j.out
-#SBATCH --error=/work/mnidgu2s/project1/track1_objbias/logs/ens-full-%j.err
+#SBATCH --output=/work/mnidgu2s/project1/track1_objbias/logs/model-fit-%j.out
+#SBATCH --error=/work/mnidgu2s/project1/track1_objbias/logs/model-fit-%j.err
 set -euo pipefail
 P1=/work/mnidgu2s/project1
 SIF=$P1/repo/containers/mhr_converter.sif
