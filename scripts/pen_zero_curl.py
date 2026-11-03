@@ -47,7 +47,7 @@ def batched_jac(mhr, pose_f, z, hand_idx, step=0.05):
     """Jacobian of hand vertices w.r.t. the 54 finger params for ONE frame.
     Returns J [3*Vh, 54] (mm per rad) and base verts [Vh,3] mm."""
     n = NF
-    P = pose_f[None].repeat(1 + 2 * n, 0)
+    P = pose_f[None].repeat(1 + 2 * n, 1)
     for k in range(n):
         P[1 + 2 * k, 68 + k] += step
         P[2 + 2 * k, 68 + k] -= step
@@ -140,7 +140,7 @@ def main():
                 A = J[rows].reshape(len(loc), 3, NF)
                 # solve min ||A_j delta - tgt_mm_j||^2 + ridge, shared delta
                 H = np.einsum("jpk,jpl->kl", A, A) + a.ridge * np.eye(NF)
-                g = np.einsum("jpk,jk->p", A, tgt_mm)
+                g = np.einsum("jp,jpk->k", tgt_mm, A)
                 delta = np.linalg.solve(H, g)
                 delta = np.clip(delta, -a.delta_max, a.delta_max)
                 pose[i, 68:122] += delta

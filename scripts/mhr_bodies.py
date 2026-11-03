@@ -59,7 +59,8 @@ def main() -> None:
     chunk = args.chunk or (256 if args.hands_only else 128)
     sets = hand_vertex_sets()
     idx = np.concatenate(sets)
-    mhr = MHR(str(MODEL), "cuda", chunk=chunk, precision=precision)
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    mhr = MHR(str(MODEL), device, chunk=chunk, precision=precision)
     args.out.mkdir(parents=True, exist_ok=True)
     for path in sorted(args.episodes_dir.glob("episode_*.npz")):
         d = np.load(path)
