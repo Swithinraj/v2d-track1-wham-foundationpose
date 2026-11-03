@@ -19,6 +19,9 @@ import pandas as pd
 from scipy.linalg import solveh_banded
 
 TRANS_IDX = 4  # array_order: pose, scales, shape, rotation, TRANSLATION, scale, verts, faces
+# --target human_root: the MHR root translation = mhr_pose (array 0) values 0..2 = packed point 0.
+# Kaggle: P2 k=0.6 on human_root (P2r60) -> ACC-H 0.13643 vs 0.13616 at k=1 (shrinking hurts).
+TARGETS = {"object": (TRANS_IDX, None), "human_root": (0, 0)}
 
 
 def whittaker(values, weights, lam):
@@ -76,11 +79,17 @@ def main():
     ap.add_argument("--verify", type=Path, default=None,
                     help="compare against this parquet instead of writing (e.g. WFk60)")
     ap.add_argument("--commit", default=None)
+    ap.add_argument("--target", choices=sorted(TARGETS), default="object",
+                    help="object: object_translation (default, Zaid's recipe); "
+                         "human_root: MHR root translation (mhr_pose values 0..2)")
     a = ap.parse_args()
 
     df = pd.read_parquet(a.base)
     parts = df["row_id"].str.split("_", expand=True)
-    is_trans = (parts[3].astype(int) == TRANS_IDX).to_numpy()
+    arr_idx, point = TARGETS[a.target]
+    is_trans = (parts[3].astype(int) == arr_idx).to_numpy().copy()
+    if point is not None:
+        is_trans &= (parts[4].astype(int) == point).to_numpy()
 
     new = df.copy()
     report = {}
