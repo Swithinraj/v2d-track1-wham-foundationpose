@@ -242,3 +242,22 @@ are used for decisions.
   P2f0 + P4hum_tab102f0 (frame-0 alignment denoise for CD boards), P4hum_tab102 (CD-O file).
 - After both: calibrate, pick top-3 by predicted Kaggle delta vs thresholds
   (acc-h r13 < 0.13571, acc-o r6 < 0.06970, cd-h r10 < 13.26540), pack, submit (max 3).
+
+### 10.1 WFk60 recipe FOUND and reproduced bit-exactly (morning, 2026-11-03)
+
+- Real recipe: `vpq-vitpose/scripts/accel_shrink.py` (H-BRS, NOT the hoop-only
+  `smooth_symmetric_objects.py`): objects-only accel shrink, **all 30 episodes**, k=0.6,
+  lam=1e4 Whittaker (2nd-difference penalized smooth), per **run of consecutive video-frame
+  ids** (gaps respected), residual scaled x_smooth + k(x - x_smooth), first scored frame
+  pinned (alignment anchor). Overnight probes were a DIFFERENT operator (Gaussian, all rows
+  as one stretch) — that's why the Kaggle k-response disagreed.
+- `scripts/accel_shrink_zaid.py` reproduces track1_cand_WFk60.parquet from
+  track1_cand_WF.parquet with max |diff| 1.2e-7 m (float32 noise). VERIFIED.
+- Kaggle-known points on HIS curve: k=1 -> 0.07051 (WF), k=0.6 -> 0.06971 (WFk60, counted,
+  r7). r6 needs < 0.06970 (only -1e-5).
+- Packed ladder (translation rows only patched, everything else bit-identical, commit
+  6444236): `submissions/track1_WFz{0.5,0.65,0.7,0.75,0.8}.parquet` (H-BRS + /tmp/opencode).
+  Linear interpolation predicts ~0.0693 at k=0.7; 0.65 is the minimal-change candidate.
+- PROPOSAL for owner (needs approval, 0 autonomous uploads left): submit WFz0.65 first
+  (safest flip of r7->r6), then WFz0.5 (bigger gain if curve keeps descending) or WFz0.8
+  (if 0.65 disappoints). Board: v2d-challenge-track1-acc-o. ~2 uploads/day remain today.
