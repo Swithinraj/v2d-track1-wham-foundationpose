@@ -46,7 +46,8 @@ def main():
         if not (fb.exists() and fc.exists()):
             continue
         db, dc = dict(np.load(fb)), dict(np.load(fc))
-        if np.allclose(db["object_translation"], dc["object_translation"]):
+        if np.allclose(db["object_translation"], dc["object_translation"]) and \
+           np.allclose(db["object_rotation"], dc["object_rotation"]):
             print(f"{tag}: candidate == base, skipped", flush=True)
             continue
         f_hands = a.hands / f"{tag}.npz"
