@@ -19,3 +19,20 @@ def test_scaling_keeps_every_pixel_and_changes_only_objects():
         assert out[key] is data[key]
     with pytest.raises(ValueError):
         scale_objects(data, 0.)
+
+
+def test_cli_per_episode_factors(tmp_path, monkeypatch):
+    import json, sys
+    import object_camera_scale
+    T = 5
+    src = tmp_path / "in"; src.mkdir()
+    for e in (0, 1):
+        np.savez(src / f"episode_{e:06d}.npz", object_translation=np.ones((T, 3)) * (e + 1), object_scale=np.array(1.),
+                 pose=np.zeros((T, 136), np.float32))
+    (tmp_path / "f.json").write_text(json.dumps({"1": 1.05}))
+    monkeypatch.setattr(sys, "argv", ["x", "--input", str(src), "--out", str(tmp_path / "out"), "--factors", str(tmp_path / "f.json")])
+    object_camera_scale.main()
+    with np.load(tmp_path / "out/episode_000000.npz") as a, np.load(tmp_path / "out/episode_000001.npz") as b:
+        np.testing.assert_array_equal(a["object_translation"], np.ones((T, 3)))
+        np.testing.assert_allclose(b["object_translation"], np.ones((T, 3)) * 2 * 1.05)
+        assert float(b["object_scale"]) == pytest.approx(1.05)
