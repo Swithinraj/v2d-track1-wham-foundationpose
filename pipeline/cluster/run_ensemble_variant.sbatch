@@ -13,13 +13,14 @@
 # A variant of P4C (run_e3_ensemble.sbatch, CD-H 13.10770): ensemble weights W="BMQ3KGM ktcp c4" and mesh smoothing LAM,
 # then P4's recipe and the table objects at TABLE about the camera. Usage: NAME=.. W="a b c" LAM=.. TABLE=.. sbatch this.
 # ENS=existing ensemble dir name to reuse (skips the ensemble step when only LAM changes).
-# C4DIR / C4LIST: CARI4D person directory and its episodes (default the 19 of episodes_c4tp_N19H). FACTORS: JSON of
+# C4DIR / C4LIST (or C4LIST_FILE): CARI4D person directory and its episodes (default the 19 of episodes_c4tp_N19H). FACTORS: JSON of
 # per-episode object scales (object_camera_scale.py --factors) used instead of TABLE.
 set -euo pipefail
 export TMPDIR=/work/mnidgu2s/project1/.tmp TRACK1_ROOT=/work/mnidgu2s/project1/repo OMP_NUM_THREADS=4
 export TRACK1_EXTRA_BINDS=/work/mnidgu2s/project1/vpq-vitpose
 source pipeline/env.sh
 trap 'echo "ENSVAR_EXIT status=$? time=$(date -u +%FT%TZ)"' EXIT
+[[ -n "${C4LIST_FILE:-}" && -z "${C4LIST:-}" ]] && C4LIST="$(cat "$C4LIST_FILE")"
 C4="${C4LIST:-3 9 10 12 13 14 15 16 17 19 21 22 23 24 25 26 27 28 29}"; C4DIR="${C4DIR:-episodes_c4tp_N19H}"; TAB="1 3 4 6 12 13 14 15 16 18 19 20 22"
 S=submissions; A=work/analysis; T=/track1; CODE=/work/mnidgu2s/project1/vpq-vitpose
 read -r W1 W2 W3 <<< "$W"
