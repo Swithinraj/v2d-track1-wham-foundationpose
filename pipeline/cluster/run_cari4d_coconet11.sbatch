@@ -27,10 +27,12 @@ worker() { # GPU EPISODES...
   for e in "$@"; do
     [[ -f work/cari4d/coconet_done/$e ]] && continue
     local log=logs/c4_cc_$e.log
-    setsid bash pipeline/recipes/cari4d_episode.sh "$e" "$gpu" > "$log" 2>&1 &
+    local tag; tag=$(episode_tag "$e")
+    bash pipeline/recipes/cari4d_episode.sh "$e" "$gpu" >> "$log" 2>&1 &
     local pid=$!
     while kill -0 "$pid" 2>/dev/null; do
-      if grep -q 'CARI4D_STAGE_COMPLETED 06_coconet' "$log"; then sleep 5; kill -TERM -- "-$pid" 2>/dev/null; break; fi
+      # Stop only this episode's inference (its own video path), never a process group shared with other workers.
+      if grep -q 'CARI4D_STAGE_COMPLETED 06_coconet' "$log"; then sleep 5; pkill -TERM -f "inputs/${tag}/${tag}.0.color.mp4"; break; fi
       sleep 10
     done
     wait "$pid" 2>/dev/null
@@ -39,7 +41,7 @@ worker() { # GPU EPISODES...
   done
 }
 worker "${GPUS[0]}" 0 4 7 18 &
-worker "${GPUS[1]}" 1 5 8 20 &
-worker "${GPUS[2]}" 2 6 11 &
+worker "${GPUS[1]}" 2 5 8 1 &
+worker "${GPUS[2]}" 6 11 20 &
 wait
 echo C4_11_FINISHED
