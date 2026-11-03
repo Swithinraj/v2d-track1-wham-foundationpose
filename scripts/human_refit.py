@@ -142,6 +142,7 @@ def object_anchor_targets(X, hsets, data, anchor_file):
 
 
 def main() -> None:
+    global FOOT_NEAR, FOOT_MAX_SHIFT
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--input", type=Path, required=True)
     ap.add_argument("--out", type=Path, required=True)
@@ -154,7 +155,6 @@ def main() -> None:
     ap.add_argument("--foot-near", type=float, default=FOOT_NEAR, help="sole-near-floor planting gate (m)")
     ap.add_argument("--foot-shift", type=float, default=FOOT_MAX_SHIFT, help="max foot drop onto the floor (m)")
     args = ap.parse_args()
-    global FOOT_NEAR, FOOT_MAX_SHIFT
     FOOT_NEAR, FOOT_MAX_SHIFT = args.foot_near, args.foot_shift
     dev = "cuda"
     mhr = MHR(str(MODEL), dev, chunk=128, precision="float64")

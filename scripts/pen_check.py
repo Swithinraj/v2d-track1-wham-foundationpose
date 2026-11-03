@@ -54,7 +54,10 @@ def main():
             print(f"{tag}: no hands npz, skipped", flush=True)
             continue
         hands = np.load(f_hands)["hands"].astype(np.float64)          # [T, 4636, 3] metres
-        mesh = trimesh.load(a.base / f"{tag}_object.glb", force="mesh")
+        mesh_p = a.base / f"{tag}_object.glb"
+        if not mesh_p.exists():
+            mesh_p = a.base / f"{tag}_object.ply"                     # unpacked-candidate layout
+        mesh = trimesh.load(mesh_p, force="mesh")
         V = np.asarray(mesh.vertices, np.float64)
         F = np.asarray(mesh.faces)
         v0, v1, v2 = V[F[:, 0]], V[F[:, 1]], V[F[:, 2]]
@@ -84,7 +87,7 @@ def main():
                     "hand_inside_before": stats["b"][0], "hand_inside_after": stats["c"][0],
                     "min_dist_cm_before": round(min(stats["b"][1]) * 100, 3),
                     "min_dist_cm_after": round(min(stats["c"][1]) * 100, 3)}
-        print(f"{tag}: inside {ins_b} -> {ins_c} | min dist "
+        print(f"{tag}: inside {rep[tag]['hand_inside_before']} -> {rep[tag]['hand_inside_after']} | min dist "
               f"{rep[tag]['min_dist_cm_before']} -> {rep[tag]['min_dist_cm_after']} cm", flush=True)
     a.out.parent.mkdir(parents=True, exist_ok=True)
     a.out.write_text(json.dumps(rep, indent=1))
