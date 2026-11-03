@@ -13,20 +13,22 @@
 # A variant of P4C (run_e3_ensemble.sbatch, CD-H 13.10770): ensemble weights W="BMQ3KGM ktcp c4" and mesh smoothing LAM,
 # then P4's recipe and the table objects at TABLE about the camera. Usage: NAME=.. W="a b c" LAM=.. TABLE=.. sbatch this.
 # ENS=existing ensemble dir name to reuse (skips the ensemble step when only LAM changes).
+# C4DIR / C4LIST: CARI4D person directory and its episodes (default the 19 of episodes_c4tp_N19H). FACTORS: JSON of
+# per-episode object scales (object_camera_scale.py --factors) used instead of TABLE.
 set -euo pipefail
 export TMPDIR=/work/mnidgu2s/project1/.tmp TRACK1_ROOT=/work/mnidgu2s/project1/repo OMP_NUM_THREADS=4
 export TRACK1_EXTRA_BINDS=/work/mnidgu2s/project1/vpq-vitpose
 source pipeline/env.sh
 trap 'echo "ENSVAR_EXIT status=$? time=$(date -u +%FT%TZ)"' EXIT
-C4="3 9 10 12 13 14 15 16 17 19 21 22 23 24 25 26 27 28 29"; TAB="1 3 4 6 12 13 14 15 16 18 19 20 22"
+C4="${C4LIST:-3 9 10 12 13 14 15 16 17 19 21 22 23 24 25 26 27 28 29}"; C4DIR="${C4DIR:-episodes_c4tp_N19H}"; TAB="1 3 4 6 12 13 14 15 16 18 19 20 22"
 S=submissions; A=work/analysis; T=/track1; CODE=/work/mnidgu2s/project1/vpq-vitpose
 read -r W1 W2 W3 <<< "$W"
-echo "ENSVAR_START name=$NAME w=$W lam=$LAM table=$TABLE ens=${ENS:-new} commit=$(git -C $CODE rev-parse HEAD)"
+echo "ENSVAR_START name=$NAME w=$W lam=$LAM table=${TABLE:-} factors=${FACTORS:-} c4=$C4DIR ens=${ENS:-new} commit=$(git -C $CODE rev-parse HEAD)"
 run() { in_container mhr_converter.sif env CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES}" OMP_NUM_THREADS=4 python -u "$@"; }
 ENSDIR=${ENS:-episodes_ens_$NAME}
 if [[ -z "${ENS:-}" ]]; then
   run $T/scripts/human_ensemble.py --out $T/$S/$ENSDIR --member BMQ3KGM=$T/$S/episodes_cand_Mtp_in:$W1 \
-    --member ktcp=$T/$S/episodes_base_ktcp:$W2 --member c4=$T/$S/episodes_c4tp_N19H:$W3 --episodes $C4 | tail -1
+    --member ktcp=$T/$S/episodes_base_ktcp:$W2 --member c4=$T/$S/$C4DIR:$W3 --episodes $C4 | tail -1
 fi
 run $T/scripts/human_refit.py --input $T/$S/$ENSDIR --out $T/$S/episodes_refit_$NAME --lam $LAM | tail -1
 run $T/scripts/floor_bodies.py --episodes_dir $T/$S/episodes_refit_$NAME --out $T/$A/bodies_$NAME | tail -1
@@ -45,5 +47,10 @@ done
   --out $S/episodes_personm_$NAME --weight 0.3 | tail -1
 "$VENV_PYTHON" scripts/object_transfer.py --people $S/episodes_personm_$NAME --people_meshes $A/meshes/${NAME}all --objects $S/episodes_baseold_k_OTa \
   --objects_meshes $A/meshes/BMQ3KGM_old --out $S/episodes_cand_$NAME | tail -1
-"$VENV_PYTHON" $CODE/scripts/object_camera_scale.py --input $S/episodes_cand_$NAME --out $S/episodes_cand_${NAME}tab --scale $TABLE --episodes $TAB | tail -1
+if [[ -n "${FACTORS:-}" ]]; then
+  "$VENV_PYTHON" $CODE/scripts/object_camera_scale.py --input $S/episodes_cand_$NAME --out $S/episodes_cand_${NAME}tab --factors "$FACTORS" | tail -1
+  cp "$FACTORS" $S/episodes_cand_${NAME}tab/factors.json
+else
+  "$VENV_PYTHON" $CODE/scripts/object_camera_scale.py --input $S/episodes_cand_$NAME --out $S/episodes_cand_${NAME}tab --scale $TABLE --episodes $TAB | tail -1
+fi
 echo ENSVAR_BUILT
