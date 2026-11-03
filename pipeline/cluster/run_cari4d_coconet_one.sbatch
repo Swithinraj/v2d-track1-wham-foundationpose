@@ -13,7 +13,7 @@
 # CARI4D through its CoCoNet stage on the 11 episodes the cancelled batch never reached. Adding CoCoNet's person to the mesh
 # ensemble on 19 episodes cut CD-H by 0.22 (P4C), so the rest should gain too. The upstream runner has no stop-after
 # flag; each run is stopped once 06_coconet has completed (refinement and render are not used; reruns reuse finished
-# stages). One GPU per job (EPISODES="..."), so jobs start as single GPUs free up. Codex's repaired FoundationPose exporter (undefined diagnostics as NaN) is bound for every run.
+# stages). One GPU and ONE episode per job (EPISODES=N): stopping the container also ends its job, so a job holds one episode. Codex's repaired FoundationPose exporter (undefined diagnostics as NaN) is bound for every run.
 set -uo pipefail
 export TMPDIR=/work/mnidgu2s/project1/.tmp TRACK1_ROOT=/work/mnidgu2s/project1/repo
 export CARI4D_EXPORTER_PATCH=/work/mnidgu2s/project1/repo/work/cari4d/overrides/run_foundationpose_mhr_export.py

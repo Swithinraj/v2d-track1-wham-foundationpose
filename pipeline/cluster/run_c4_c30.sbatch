@@ -18,7 +18,8 @@ export TMPDIR=/work/mnidgu2s/project1/.tmp TRACK1_ROOT=/work/mnidgu2s/project1/r
 source pipeline/env.sh
 trap 'echo "C30_EXIT status=$? time=$(date -u +%FT%TZ)"' EXIT
 IFS=',' read -r -a GPUS <<< "${CUDA_VISIBLE_DEVICES}"
-NEW=$(ls work/cari4d/coconet_done 2>/dev/null | sort -n | tr '\n' ' ')
+# Finished CoCoNet stages are found by their saved output (stopping a run also ends its single-episode job).
+NEW=$(for e in $(seq 0 29); do t=$(episode_tag "$e"); [[ -f "work/cari4d/params/coconet_l300/$t.npz" ]] && continue; [[ -f "work/cari4d/out/$t/inference/coconet.pth" ]] && echo "$e"; done | tr '\n' ' ')
 echo "C30_START new episodes: ${NEW}"
 for d in submissions/episodes_c4_C30 submissions/episodes_c4tp_C30 work/cari4d/camroot/C30 work/cari4d/select/C30; do
   [[ -e $d ]] && { echo "$d exists; refusing to overwrite"; exit 2; }
