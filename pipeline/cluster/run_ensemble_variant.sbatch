@@ -35,11 +35,11 @@ run $T/scripts/human_refit.py --input $T/$S/$ENSDIR --out $T/$S/episodes_refit_$
 run $T/scripts/floor_bodies.py --episodes_dir $T/$S/episodes_refit_$NAME --out $T/$A/bodies_$NAME | tail -1
 run $T/scripts/ensemble_meshes.py --episodes_dir $T/$S/episodes_refit_$NAME --out $T/$A/meshes/$NAME | tail -1
 # The 11 episodes CARI4D did not finish: E2 refitted with the same LAM (E2R for 100, E2L300 for 300).
-case "$LAM" in 100) R=episodes_refit_E2; B=bodies_HE2R; M=E2R;; 300) R=episodes_refit_E2L300; B=bodies_HE2L300; M=E2L300;; *) echo "no E2 refit for lam $LAM"; exit 2;; esac
+case "$LAM" in 100) R=episodes_refit_E2; B=bodies_HE2R; M=E2R;; 300) R=episodes_refit_E2L300; B=bodies_HE2L300; M=E2L300;; *) R=""; B=""; M="";; esac
 mkdir -p $S/episodes_refit_${NAME}all $A/bodies_${NAME}all $A/meshes/${NAME}all
 for e in $(seq 0 29); do
   t=$(printf 'episode_%06d' "$e")
-  if [[ -f $S/episodes_refit_$NAME/$t.npz ]]; then src=$S/episodes_refit_$NAME; b=$A/bodies_$NAME; m=$A/meshes/$NAME; else src=$S/$R; b=$A/$B; m=$A/meshes/$M; fi
+  if [[ -f $S/episodes_refit_$NAME/$t.npz ]]; then src=$S/episodes_refit_$NAME; b=$A/bodies_$NAME; m=$A/meshes/$NAME; else [[ -n "$R" ]] || { echo "no E2 refit for lam $LAM to fill episode $e"; exit 2; }; src=$S/$R; b=$A/$B; m=$A/meshes/$M; fi
   cp -l "$src/$t.npz" "$src/${t}_object.glb" $S/episodes_refit_${NAME}all/; cp -l "$b/$t.npz" $A/bodies_${NAME}all/; cp -l "$m/$t.npy" $A/meshes/${NAME}all/
 done
 "$VENV_PYTHON" scripts/floor_root.py --input $S/episodes_refit_${NAME}all --bodies $A/bodies_${NAME}all --planes outputs/floor/planes_measured.json \
