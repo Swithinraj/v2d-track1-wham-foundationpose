@@ -68,3 +68,19 @@ Object scales for the final: `pipeline/cluster/object_factors_t1023_f1008.json`.
 smoothing or shrink of the human scored worse. CARI4D's CoCoNet stage was run on the 11 missing episodes (one episode
 per job: stopping the container after 06_coconet also ends its job), then `run_c4_c30.sbatch` and
 `run_ensemble_variant.sbatch` (NAME=E3C30) build the all-30 ensemble, and `run_pen_zero.sbatch` its PEN-0 version.
+
+## Final files (all cite commit 794e7726fabc6eab0fb43172638ea4baa8740430)
+
+Late Nov 3: CARI4D's CoCoNet person on all 30 episodes (E3C30tab) gave CD-H 12.97765 / CD-O 16.71158; root mix 0.15
+gave CD-H 12.96979 (0.3: 12.97765, 0.45: 13.01137); floor slide beta 0.45/0.65 were worse (13.01232/13.00200).
+
+| Board | File | Score | Status |
+|---|---|---|---|
+| ACC-H | track1_cand_P2final.parquet (= P2) | 0.13616 | uploaded Nov 3 (57952955) |
+| ACC-O | track1_cand_WFk60final.parquet (= WFk60) | 0.06971 | uploaded Nov 3 (57952977) |
+| PEN | track1_cand_E3C30tabZ.parquet | 0.00000 | uploaded Nov 3 (57953874) |
+| CD-H, CD-O | track1_cand_C30L15m15tab.parquet or track1_cand_C30m15tab.parquet | — | Nov 4, see below |
+
+Nov 4 (fresh quota): upload C30L15m15tab (mesh smoothing lam 150, root mix 0.15) with `--only cd_h_cm cd_o_cm`. If its
+CD-H beats 12.96979 it is the CD final; otherwise upload C30m15tab (12.96979 already measured under another commit) with
+`--only cd_h_cm cd_o_cm`. Then the owner selects, per board on Kaggle, the files above as final submissions.
