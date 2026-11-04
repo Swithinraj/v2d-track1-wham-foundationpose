@@ -1,0 +1,7 @@
+{
+  "note": "Measured intrinsics of the four FORM-HOI rig cameras (left image of each stereo pair; edex cameras 0 / 2 / 6 / 4 as in CARI4D's prep/mhr_export_utils.py). Each has ONE calibration over all FORM-HOI recording days (scripts/camera_truth_check.py: 1488 episodes, 34-46 days per camera). 1536 x 1152 pixels, pinhole.",
+  "front_stereo_camera_left": {"fx": 856.6414184570312, "cx": 718.1693115234375, "cy": 529.3162841796875},
+  "back_stereo_camera_left":  {"fx": 846.0206298828125, "cx": 727.7623291015625, "cy": 538.5328979492188},
+  "right_stereo_camera_left": {"fx": 840.5738525390625, "cx": 714.4396362304688, "cy": 527.4591064453125},
+  "left_stereo_camera_left":  {"fx": 846.8954467773438, "cx": 713.504150390625, "cy": 544.2072143554688}
+}

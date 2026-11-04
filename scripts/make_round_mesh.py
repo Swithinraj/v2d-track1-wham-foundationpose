@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Exactly round replacement mesh for a rotationally symmetric object (config/symmetric_objects.json).
 
-kind=torus: a hula hoop is round, but the generated mesh is not quite (TRELLIS: 0.677 x 0.704 m). This
-writes a torus around the mesh y axis with the generated mesh's median centreline radius and tube
-radius, so the object's spin about its axis is truly unobservable and invisible to CD-O. Runs in
-v2d_sam3d.sif (trimesh). Output: inputs/object_meshes/<object>.symmetric.glb (+ .json with R, r).
+kind=torus: a hula hoop is round, but the generated mesh is not quite. This writes a torus around the y axis
+with the generated mesh's median centreline radius and tube radius (measured about its own ring axis, the
+direction of least spread), so the object's spin about its axis is truly unobservable and invisible to CD-O.
+Runs in v2d_sam3d.sif (trimesh). Output: inputs/object_meshes/<object>.symmetric.glb (+ .json with R, r).
 """
 
 from __future__ import annotations
@@ -30,8 +30,12 @@ def main() -> None:
 
     src = trimesh.load(ROOT / "inputs" / "object_meshes" / f"{args.object}.glb", force="mesh")
     v = src.vertices - src.bounds.mean(axis=0)
+    # The ring axis is the direction of least spread (the generator may return the ring in any orientation);
+    # express the vertices with that axis as y. Only the ring and tube radii are used downstream.
+    _, _, axes = np.linalg.svd(v - v.mean(axis=0), full_matrices=False)
+    v = v @ np.stack([axes[0], axes[2], axes[1]]).T
     ring_radius = float(np.median(np.linalg.norm(v[:, [0, 2]], axis=1)))
-    tube_radius = float(np.ptp(v[:, 1]) / 2)
+    tube_radius = float((np.percentile(v[:, 1], 98) - np.percentile(v[:, 1], 2)) / 2)
     u, w = np.meshgrid(np.linspace(0, 2 * np.pi, 360, endpoint=False), np.linspace(0, 2 * np.pi, 24, endpoint=False),
                        indexing="ij")
     vertices = np.stack([(ring_radius + tube_radius * np.cos(w)) * np.cos(u), tube_radius * np.sin(w),

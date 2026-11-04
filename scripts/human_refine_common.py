@@ -35,7 +35,10 @@ def scored_and_budget():
 
 
 def alignment(tag: str) -> dict:
-    return json.loads((ROOT / "outputs/alignment" / tag / "alignment.json").read_text())
+    """Camera alignment of an episode (R_cw, t_cw, depth_scale, intrinsics), written by sam3d_body_hands.py
+    (the world is the static camera: R = I, t = 0). TRACK1_ALIGNMENT_DIR overrides outputs/alignment_sam."""
+    root = Path(os.environ.get("TRACK1_ALIGNMENT_DIR") or ROOT / "outputs/alignment_sam")
+    return json.loads((root / tag / "alignment.json").read_text())
 
 
 def load_contact(ep: int, contact_dir: Path, pre_dir: Path, hands_dir: Path) -> dict:

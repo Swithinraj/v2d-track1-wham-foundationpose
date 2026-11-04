@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Smooth the centre trajectory of symmetry-tracked objects (hula hoop) in assembled episodes (WHAM image).
+"""Smooth the centre trajectory of symmetry-tracked objects (hula hoop) in assembled episodes (v2d_cari4d.sif).
 
 The symmetry-aware tracker fits the ring to every frame's mask, which leaves broadband frame-to-frame
 jitter on moving frames (episode 1: 2.7 cm/frame^2 mean acceleration on scored frames). Per episode

@@ -205,7 +205,7 @@ def main() -> None:
         )
 
     selected: list[tuple[float, int, dict]] = []
-    for candidate in sorted(candidates, reverse=True):
+    for candidate in sorted(candidates, key=lambda c: (c[0], c[1]), reverse=True):   # ties: never compare dicts
         if all(abs(candidate[1] - previous[1]) >= args.min_frame_gap for previous in selected):
             selected.append(candidate)
             if len(selected) == args.max_prompts:

@@ -13,12 +13,12 @@ if ! "${HOST_PYTHON}" -c "import json, sys; sys.exit(0 if '${OBJECT}' in json.lo
   exit 0
 fi
 require_file "${TRACK1_ROOT}/outputs/object/${TAG}/foundationpose/smoothed/000000.json" "run pipeline/stages/track_object.sh ${EPISODE}"
-require_file "${TRACK1_ROOT}/outputs/hands/${TAG}.npz" "run pipeline/stages/hands.sh ${EPISODE}"
+require_file "${TRACK1_ROOT}/outputs/hands/${TAG}.npz" "run pipeline/stages/sam3d_body.sh ${EPISODE}"
 
 if [[ ! -s "${TRACK1_ROOT}/inputs/object_meshes/${OBJECT}.symmetric.glb" ]]; then
   in_container v2d_sam3d.sif python /track1/scripts/make_round_mesh.py --object "${OBJECT}"
 fi
 hands_flag=()
 [[ "${NO_HANDS:-0}" == 1 ]] && hands_flag=(--no_hands)
-apptainer exec --no-home --cleanenv --bind "${TRACK1_ROOT}:/track1" "${CONTAINERS}/wham.sif" \
-  env HOME=/tmp python -u /track1/scripts/track_symmetric_object.py --episode "${EPISODE}" "${hands_flag[@]}"
+in_container v2d_cari4d.sif TRACK1_ALIGNMENT_DIR=/track1/outputs/alignment_sam \
+  python -u /track1/scripts/track_symmetric_object.py --episode "${EPISODE}" ${hands_flag[@]+"${hands_flag[@]}"}

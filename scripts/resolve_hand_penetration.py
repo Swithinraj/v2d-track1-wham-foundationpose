@@ -138,8 +138,8 @@ def resolve_episode(task) -> dict:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--input", type=Path, default=ROOT / "submissions" / "episodes_wham_fp")
-    parser.add_argument("--out", type=Path, default=ROOT / "submissions" / "episodes_wham_fp_pen")
+    parser.add_argument("--input", type=Path, required=True)
+    parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--workers", type=int, default=8)
     args = parser.parse_args()
 

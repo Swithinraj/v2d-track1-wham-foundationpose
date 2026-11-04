@@ -1,0 +1,244 @@
+{
+ "episode_000000": {
+  "camera": "back_stereo_camera_left",
+  "corr": 0.9912730164888366,
+  "corr_other": 0.3847527925641022,
+  "votes": {
+   "back_stereo_camera_left": 5
+  }
+ },
+ "episode_000001": {
+  "camera": "back_stereo_camera_left",
+  "corr": 0.9930738133450395,
+  "corr_other": 0.38146099443547965,
+  "votes": {
+   "back_stereo_camera_left": 5
+  }
+ },
+ "episode_000002": {
+  "camera": "back_stereo_camera_left",
+  "corr": 0.9920881940564742,
+  "corr_other": 0.38548113232657877,
+  "votes": {
+   "back_stereo_camera_left": 5
+  }
+ },
+ "episode_000003": {
+  "camera": "left_stereo_camera_left",
+  "corr": 0.9695586114859683,
+  "corr_other": 0.36505336298580104,
+  "votes": {
+   "left_stereo_camera_left": 5
+  }
+ },
+ "episode_000004": {
+  "camera": "front_stereo_camera_left",
+  "corr": 0.9900022254875235,
+  "corr_other": 0.4150122747598064,
+  "votes": {
+   "front_stereo_camera_left": 5
+  }
+ },
+ "episode_000005": {
+  "camera": "front_stereo_camera_left",
+  "corr": 0.9713329325058667,
+  "corr_other": 0.4171686287879823,
+  "votes": {
+   "front_stereo_camera_left": 5
+  }
+ },
+ "episode_000006": {
+  "camera": "left_stereo_camera_left",
+  "corr": 0.9874532451107215,
+  "corr_other": 0.37836506507932793,
+  "votes": {
+   "left_stereo_camera_left": 5
+  }
+ },
+ "episode_000007": {
+  "camera": "left_stereo_camera_left",
+  "corr": 0.9895730414956622,
+  "corr_other": 0.3651189208353243,
+  "votes": {
+   "left_stereo_camera_left": 5
+  }
+ },
+ "episode_000008": {
+  "camera": "right_stereo_camera_left",
+  "corr": 0.9759710730767664,
+  "corr_other": 0.43458382446593763,
+  "votes": {
+   "right_stereo_camera_left": 5
+  }
+ },
+ "episode_000009": {
+  "camera": "front_stereo_camera_left",
+  "corr": 0.9562842100040619,
+  "corr_other": 0.40137543712278645,
+  "votes": {
+   "front_stereo_camera_left": 5
+  }
+ },
+ "episode_000010": {
+  "camera": "left_stereo_camera_left",
+  "corr": 0.9579567402471988,
+  "corr_other": 0.41916579923256214,
+  "votes": {
+   "left_stereo_camera_left": 5
+  }
+ },
+ "episode_000011": {
+  "camera": "left_stereo_camera_left",
+  "corr": 0.9591631111332074,
+  "corr_other": 0.4229386729274532,
+  "votes": {
+   "left_stereo_camera_left": 5
+  }
+ },
+ "episode_000012": {
+  "camera": "front_stereo_camera_left",
+  "corr": 0.47356665184677155,
+  "corr_other": 0.37480400363535593,
+  "votes": {
+   "front_stereo_camera_left": 5
+  }
+ },
+ "episode_000013": {
+  "camera": "left_stereo_camera_left",
+  "corr": 0.9127944481876825,
+  "corr_other": 0.36673543192588687,
+  "votes": {
+   "left_stereo_camera_left": 5
+  }
+ },
+ "episode_000014": {
+  "camera": "front_stereo_camera_left",
+  "corr": 0.48166812281243504,
+  "corr_other": 0.38860323039457906,
+  "votes": {
+   "front_stereo_camera_left": 5
+  }
+ },
+ "episode_000015": {
+  "camera": "front_stereo_camera_left",
+  "corr": 0.3703232462668194,
+  "corr_other": 0.3549378134300778,
+  "votes": {
+   "front_stereo_camera_left": 5
+  }
+ },
+ "episode_000016": {
+  "camera": "front_stereo_camera_left",
+  "corr": 0.4739291553708982,
+  "corr_other": 0.3689500453036786,
+  "votes": {
+   "front_stereo_camera_left": 5
+  }
+ },
+ "episode_000017": {
+  "camera": "left_stereo_camera_left",
+  "corr": 0.9278705152380009,
+  "corr_other": 0.381450744569603,
+  "votes": {
+   "left_stereo_camera_left": 5
+  }
+ },
+ "episode_000018": {
+  "camera": "back_stereo_camera_left",
+  "corr": 0.5251632049275836,
+  "corr_other": 0.34528559931440483,
+  "votes": {
+   "back_stereo_camera_left": 5
+  }
+ },
+ "episode_000019": {
+  "camera": "left_stereo_camera_left",
+  "corr": 0.9023295532201795,
+  "corr_other": 0.39022678421736595,
+  "votes": {
+   "left_stereo_camera_left": 5
+  }
+ },
+ "episode_000020": {
+  "camera": "left_stereo_camera_left",
+  "corr": 0.9161376963182836,
+  "corr_other": 0.3780350942368373,
+  "votes": {
+   "left_stereo_camera_left": 5
+  }
+ },
+ "episode_000021": {
+  "camera": "left_stereo_camera_left",
+  "corr": 0.9172926131924551,
+  "corr_other": 0.3687847595195355,
+  "votes": {
+   "left_stereo_camera_left": 5
+  }
+ },
+ "episode_000022": {
+  "camera": "front_stereo_camera_left",
+  "corr": 0.4824648031644821,
+  "corr_other": 0.39716226767212937,
+  "votes": {
+   "front_stereo_camera_left": 5
+  }
+ },
+ "episode_000023": {
+  "camera": "front_stereo_camera_left",
+  "corr": 0.4849208050612787,
+  "corr_other": 0.38558629659556526,
+  "votes": {
+   "front_stereo_camera_left": 5
+  }
+ },
+ "episode_000024": {
+  "camera": "front_stereo_camera_left",
+  "corr": 0.4711283286177484,
+  "corr_other": 0.3906582037326124,
+  "votes": {
+   "front_stereo_camera_left": 5
+  }
+ },
+ "episode_000025": {
+  "camera": "right_stereo_camera_left",
+  "corr": 0.3676909689462712,
+  "corr_other": 0.3595979305368435,
+  "votes": {
+   "right_stereo_camera_left": 3,
+   "front_stereo_camera_left": 2
+  }
+ },
+ "episode_000026": {
+  "camera": "right_stereo_camera_left",
+  "corr": 0.3696453241079368,
+  "corr_other": 0.3552352530792065,
+  "votes": {
+   "right_stereo_camera_left": 5
+  }
+ },
+ "episode_000027": {
+  "camera": "right_stereo_camera_left",
+  "corr": 0.3554014748309319,
+  "corr_other": 0.347161076085235,
+  "votes": {
+   "right_stereo_camera_left": 3,
+   "front_stereo_camera_left": 2
+  }
+ },
+ "episode_000028": {
+  "camera": "back_stereo_camera_left",
+  "corr": 0.5231971366606716,
+  "corr_other": 0.3364404293135722,
+  "votes": {
+   "back_stereo_camera_left": 5
+  }
+ },
+ "episode_000029": {
+  "camera": "left_stereo_camera_left",
+  "corr": 0.9186971938278798,
+  "corr_other": 0.368299115465543,
+  "votes": {
+   "left_stereo_camera_left": 5
+  }
+ }
+}

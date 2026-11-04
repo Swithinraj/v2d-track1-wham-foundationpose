@@ -5,9 +5,8 @@ Runs inside containers/mhr_converter.sif. The scorer measures PEN with 512 hand 
 right) taken from host-side MHR vertex roles that the kit does not ship. This approximates them
 from the public MHR model: hand vertices are those whose dominant skinning joint lies in one of the
 two wrist subtrees (joints 42 and 78: 5 finger chains, 23 joints each), and 256 are drawn per hand
-with a fixed seed. Bodies come from the drift-corrected pose (outputs/human + outputs/alignment drift,
-the same pose build_track1_episodes.py packs, or already assembled episode files with --episodes_dir)
-through the kit's MHR wrapper, so they are in the Track 1 frame and metres.
+with a fixed seed. Bodies come from assembled episode files (--episodes_dir) through the kit's MHR wrapper,
+so they are in the Track 1 frame and metres.
 
 Writes outputs/hands/episode_XXXXXX.npz (hands [T, 512, 3]) and outputs/hands/mhr_hand_vertices.json.
 """
@@ -61,8 +60,7 @@ def hand_vertex_indices() -> list[np.ndarray]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--episodes_dir", type=Path, default=None,
-                        help="assembled episode NPZ files; default: build the pose from outputs/human + drift")
+    parser.add_argument("--episodes_dir", type=Path, required=True, help="assembled episode NPZ files")
     parser.add_argument("--episodes", type=int, nargs="*", default=None)
     args = parser.parse_args()
 
@@ -77,20 +75,12 @@ def main() -> None:
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     mhr = MHR(str(MODEL), device, chunk=256 if device == "cuda" else 64, precision="float32")
-    if args.episodes_dir is not None:
-        paths = sorted(args.episodes_dir.glob("episode_*.npz"))
-    else:
-        paths = sorted((ROOT / "outputs" / "human").glob("episode_*/mhr_human.npz"))
-    tag_of = (lambda p: p.stem) if args.episodes_dir is not None else (lambda p: p.parent.name)
+    paths = sorted(args.episodes_dir.glob("episode_*.npz"))
+    tag_of = lambda p: p.stem  # noqa: E731
     if args.episodes is not None:
         paths = [p for p in paths if int(tag_of(p).split("_")[1]) in args.episodes]
     for path in paths:
         data = dict(np.load(path))
-        if args.episodes_dir is None:   # add the smoothed WHAM drift exactly as build_track1_episodes.py does
-            drift = np.load(ROOT / "outputs" / "alignment" / tag_of(path) / "drift.npz")["drift_world"]
-            pose64 = data["pose"].astype(np.float64)
-            pose64[:, :3] += np.array([1.0, -1.0, -1.0]) * drift * 10.0
-            data["pose"] = pose64.astype(np.float32)   # float32, as stored in the assembled episode files
         pose = torch.as_tensor(data["pose"], dtype=torch.float64, device=mhr.device)
         identity = torch.as_tensor(np.concatenate([data["scales"], data["shape"]])[None], dtype=torch.float64,
                                    device=mhr.device)

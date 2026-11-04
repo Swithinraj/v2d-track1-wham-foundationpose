@@ -4,7 +4,7 @@
 PoseLandmarker (heavy, up to 3 people, VIDEO mode) on every frame. Hands are too small in the full frame
 for MediaPipe's palm detector, so HandLandmarker (IMAGE mode) runs on an upscaled square crop around each
 detected person's pose wrist (side 2.5x the elbow-wrist length, >= 96 px, resized to 320 px).
-Everything detected is stored raw; the actor is chosen later against the exported WHAM track, so a
+Everything detected is stored raw; the actor is chosen later against the projected MHR body, so a
 background person cannot leak in. Pixel coordinates in the original 1536x1152 image.
 Models: weights/mediapipe/{pose_landmarker_heavy,hand_landmarker}.task (pipeline/setup/setup_mediapipe.sh).
 Writes outputs/mediapipe/episode_XXXXXX.npz:
